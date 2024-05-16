@@ -1,0 +1,14 @@
+int main() {
+    while (true) {
+        printString("prints once");
+        break;
+    }
+    int i = 0;
+    while (i < 100) {
+        i++;
+        continue;
+        printString("does not print");
+    }
+    printInt(i); // 100
+    return 0;
+}

@@ -1,0 +1,11 @@
+int main() {
+    int x = 0;
+    void inner() {
+        x++;
+        int x = 1337;
+        x++;
+    }
+    inner();
+    printInt(x); // 1
+    return 0;
+}

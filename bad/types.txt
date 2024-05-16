@@ -1,0 +1,10 @@
+// fails static type checking
+
+int test() {
+    return "I'm a number";
+}
+
+int main() {
+    printInt(test());
+    return 0;
+}
