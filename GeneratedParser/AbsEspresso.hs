@@ -88,7 +88,7 @@ data Expr' a
 
 type IndHelper = IndHelper' BNFC'Position
 data IndHelper' a
-    = IndBase a Ident [Expr' a] | IndRec a (IndHelper' a) [Expr' a]
+    = IndBase a Ident Integer | IndRec a (IndHelper' a) Integer
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
 type AddOp = AddOp' BNFC'Position

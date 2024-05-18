@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 
 import GeneratedParser.AbsEspresso
 
-data TType = TInt | TBool | TStr | TTuple [TType] | TFun TType [TType] Block deriving Eq
+data TType = TInt | TBool | TStr | TVoid | TTuple [TType] | TFun TType [TType] Block deriving Eq
 
 data ItemType = TType | AnyType deriving Eq
 
@@ -36,6 +36,7 @@ convertType :: Type -> TType
 convertType (Int _) = TInt
 convertType (Bool _) = TBool
 convertType (Str _) = TStr
+convertType (Void _) = TVoid
 convertType (Tuple _ ts) = TTuple $ map convertType ts
 
 getType :: Pos -> Var -> TCM TType
@@ -84,16 +85,35 @@ addTopDef (FnDef _ t (Ident f) args b) = do
     let argTypes = map (\(Arg _ t _) -> convertType t) args
     setType f $ TFun (convertType t) argTypes b
 
+checkIndHelper :: IndHelper -> TCM TType
+checkIndHelper (IndBase pos x i) = do
+    t <- getType pos $ convertIdent x
+    case t of
+        TTuple ts -> if i >= 0 && (fromInteger i) < length ts
+            then return $ ts !! (fromInteger i)
+        else throwErr pos "Index out of bounds"
+        _ -> throwErr pos "Indexing on non-tuple"
+checkIndHelper (IndRec pos ih i) = do
+    t <- checkIndHelper ih
+    case t of
+        TTuple ts -> if i >= 0 && (fromInteger i) < length ts
+            then return $ ts !! (fromInteger i)
+        else throwErr pos "Index out of bounds"
+        _ -> throwErr pos "Indexing on non-tuple"
+
 checkStmt :: Stmt -> TCM ()
 
 checkStmt (Empty _) = return ()
 
 checkStmt (BStmt pos b) = return checkBlock pos b
 
-checkStmt (Decl _ t items) = do
+checkStmt (Decl pos t items) = do
     let t' = convertType t
-    mapM_ (checkItem t') items
-    return ()
+    if t' == TVoid
+        then throwErr pos "Cannot declare void"
+    else do
+        mapM_ (checkItem t') items
+        return ()
 
 checkStmt (FDecl _ td) = do
     addTopDef td
@@ -130,12 +150,35 @@ checkStmt (Ret pos e) = do
     else
         return ()
 
-checkStmt (VRet _) = return ()
-checkStmt (Cond _ _ _) = return ()
-checkStmt (CondElse _ _ _ _) = return ()
-checkStmt (While _ _ _) = return ()
+checkStmt (VRet pos) = do
+    latestRet <- gets latestRet
+    if latestRet /= TVoid
+        then throwErr pos "Incorrect return type"
+    else
+        return ()
 
--- TODO VRet, Cond, CondElse, While
+checkStmt (Cond pos e s) = do
+    t <- checkExpr e
+    if t /= TBool
+        then throwErr pos "Non-boolean condition"
+    else do
+        checkBlock (Block Nothing [s])
+
+
+checkStmt (CondElse pos e s1 s2) = do
+    t <- checkExpr e
+    if t /= TBool
+        then throwErr pos "Non-boolean condition"
+    else do
+        checkBlock (Block Nothing [s1])
+        checkBlock (Block Nothing [s2])
+
+checkStmt (While pos e s) = do
+    t <- checkExpr e
+    if t /= TBool
+        then throwErr pos "Non-boolean condition"
+    else do
+        checkBlock (Block Nothing [s])
 
 checkStmt (SExp _ e) = do
     _ <- checkExpr e
@@ -165,7 +208,7 @@ checkExpr (EApp pos f args) = do
             else throwErr pos "Type mismatch in function application"
         _ -> throwErr pos "Function application on non-function"
 
--- TODO ind
+checkExpr (Ind pos ih) = checkIndHelper ih
 
 checkExpr (EString _ _) = return TStr
 
@@ -188,13 +231,16 @@ checkExpr (EMul pos e1 _ e2) = do
         then return TInt
     else throwErr pos "Multiplication on non-integers"
 
-checkExpr (EAdd pos e1 _ e2) = do
+checkExpr (EAdd pos e1 op e2) = do
     t1 <- checkExpr e1
     t2 <- checkExpr e2
     if t1 == TInt && t2 == TInt
         then return TInt
     else if t1 == TStr && t2 == TStr
-        then return TStr
+        then do
+            case op of
+                Plus _ -> return TStr
+                _ -> throwErr pos "Incorrect addition operator"
     else throwErr pos "Incorrect addition types"
 
 checkExpr (ERel pos e1 op e2) = do
@@ -229,12 +275,12 @@ checkExpr (ETuple _ es) = do
 
 checkProgram :: Program -> TCM ()
 checkProgram (Program pos topDefs) = do
-    mapM_ addTopDef topDefs
-    setType "printInt" $ TFun TInt [TInt] $ Block pos []
-    setType "printString" $ TFun TStr [TStr] $ Block pos []
+    setType "printInt" $ TFun TVoid [TInt] $ Block pos []
+    setType "printString" $ TFun TVoid [TStr] $ Block pos []
     setType "readInt" $ TFun TInt [] $ Block pos []
     setType "readString" $ TFun TStr [] $ Block pos []
-    setType "error" $ TFun TStr [] $ Block pos []
+    setType "error" $ TFun TVoid [] $ Block pos []
+    mapM_ addTopDef topDefs
     let mainExists = any (\(FnDef _ retType (Ident f) args _) -> f == "main" && convertType retType == TInt && args == []) topDefs
     if not mainExists
         then throwErr pos "No main function"
@@ -242,4 +288,5 @@ checkProgram (Program pos topDefs) = do
         mapM_ checkFunc topDefs
 
 typeCheck :: Program -> Either ErrMsg ()
-typeCheck p = evalStateT (checkProgram p) $ TCState Map.empty TInt
+typeCheck p = evalStateT (checkProgram p) $ initState where
+    initState = TCState Map.empty TInt

@@ -5,7 +5,7 @@ GHC_OPTS = -package array -package mtl -package containers
 
 all: interpreter
 
-interpreter: GeneratedParser/LexEspresso.hs GeneratedParser/AbsEspresso.hs GeneratedParser/ParEspresso.hs TypeChecker.hs Main.hs
+interpreter: GeneratedParser/LexEspresso.hs GeneratedParser/AbsEspresso.hs GeneratedParser/ParEspresso.hs TypeChecker.hs Interpreter.hs Main.hs
 	${GHC} ${GHC_OPTS} -o $@ $^
 
 clean:
