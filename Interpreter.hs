@@ -28,6 +28,9 @@ type IM = StateT IState (ExceptT ErrMsg IO)
 
 type Pos = BNFC'Position
 
+tcErrorMsg :: String -> String
+tcErrorMsg s = "Internal error: Type error not caught by type-checker (" ++ s ++ ")"
+
 errMessage :: Pos -> String
 errMessage (Just (l, c)) = "Error in line " ++ show l ++ ", column " ++ show c ++ ": "
 errMessage Nothing = ""
@@ -53,14 +56,14 @@ getValue pos x = do
             case Map.lookup loc store of
                 Just v -> return v
                 Nothing -> throwErr pos $ "Internal interpreter error: nonexistent location"
-        Nothing -> throwErr pos $ "Variable " ++ x ++ " not in scope"
+        Nothing -> throwErr pos $ tcErrorMsg $ "variable " ++ x ++ " not in scope"
 
 setValue :: Pos -> Var -> Value -> IM ()
 setValue pos x v = do
     env <- gets env
     case Map.lookup x env of
         Just loc -> modify $ \s -> s { store = Map.insert loc v (store s) }
-        Nothing -> throwErr pos $ "Variable " ++ x ++ " not in scope"
+        Nothing -> throwErr pos $ tcErrorMsg $ "variable " ++ x ++ " not in scope"
 
 setNewValue :: Var -> Value -> IM ()
 setNewValue x v = do
@@ -116,15 +119,15 @@ evalIndHelper (IndBase pos x i) = do
     case t of
         VTuple ts -> if i >= 0 && (fromInteger i) < length ts
             then return $ ts !! (fromInteger i)
-            else throwErr pos "Internal error: Type error not caught by type-checker (index out of bounds)"
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected tuple)"
+            else throwErr pos $ tcErrorMsg "index out of bounds"
+        _ -> throwErr pos $ tcErrorMsg "expected tuple"
 evalIndHelper (IndRec pos ih i) = do
     v <- evalIndHelper ih
     case v of
         VTuple ts -> if i >= 0 && (fromInteger i) < length ts
             then return $ ts !! (fromInteger i)
-            else throwErr pos "Internal error: Type error not caught by type-checker (index out of bounds)"
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected tuple)"
+            else throwErr pos $ tcErrorMsg "index out of bounds"
+        _ -> throwErr pos $ tcErrorMsg "expected tuple"
 
 execStmt :: Stmt -> IM (Maybe Exit)
 
@@ -151,7 +154,7 @@ execStmt (Incr pos x) = do
         VInt n -> do
             setValue pos (convertIdent x) (VInt (n + 1))
             return Nothing
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected int)"
+        _ -> throwErr pos $ tcErrorMsg "expected int"
 
 execStmt (Decr pos x) = do
     val <- getValue pos $ convertIdent x
@@ -159,7 +162,7 @@ execStmt (Decr pos x) = do
         VInt n -> do
             setValue pos (convertIdent x) (VInt (n - 1))
             return Nothing
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected int)"
+        _ -> throwErr pos $ tcErrorMsg "expected int"
 
 execStmt (Ret _ e) = do
     v <- evalExpr e
@@ -173,14 +176,14 @@ execStmt (Cond pos e s) = do
     case v of
         VBool True -> execStmt s
         VBool False -> return Nothing
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected bool)"
+        _ -> throwErr pos $ tcErrorMsg "expected bool"
 
 execStmt (CondElse pos e s1 s2) = do
     v <- evalExpr e
     case v of
         VBool True -> execStmt s1
         VBool False -> execStmt s2
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected bool)"
+        _ -> throwErr pos $ tcErrorMsg "expected bool"
 
 execStmt (While pos e s) = do
     v <- evalExpr e
@@ -191,7 +194,7 @@ execStmt (While pos e s) = do
                 Just (EBreak _) -> return Nothing
                 _ -> execStmt (While pos e s)
         VBool False -> return Nothing
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected bool)"
+        _ -> throwErr pos $ tcErrorMsg "expected bool"
 
 execStmt (SExp _ e) = do
     _ <- evalExpr e
@@ -218,7 +221,7 @@ evalExpr (EApp pos f args) = do
         VFun phi -> do
             argVals <- mapM evalExpr args
             phi argVals
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected function)"
+        _ -> throwErr pos $ tcErrorMsg "expected function"
 
 evalExpr (Ind pos ih) = evalIndHelper ih
 
@@ -228,13 +231,13 @@ evalExpr (Neg pos e) = do
     v <- evalExpr e
     case v of
         VInt n -> return $ VInt (-n)
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected integer)"
+        _ -> throwErr pos $ tcErrorMsg "expected int"
 
 evalExpr (Not pos e) = do
     v <- evalExpr e
     case v of
         VBool b -> return $ VBool (not b)
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected boolean)"
+        _ -> throwErr pos $ tcErrorMsg "expected bool"
 
 evalExpr (EMul pos e1 op e2) = do
     v1 <- evalExpr e1
@@ -246,7 +249,7 @@ evalExpr (EMul pos e1 op e2) = do
                 if n2 == 0
                     then throwErr pos' "Division by zero"
                 else return $ VInt $ n1 `div` n2
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected integers)" 
+        _ -> throwErr pos $ tcErrorMsg "expected ints"
 
 evalExpr (EAdd pos e1 op e2) = do
     v1 <- evalExpr e1
@@ -257,8 +260,8 @@ evalExpr (EAdd pos e1 op e2) = do
             Minus _ -> return $ VInt $ n1 - n2
         (VStr s1, VStr s2) -> case op of
             Plus _ -> return $ VStr $ s1 ++ s2
-            Minus _ -> throwErr pos "Internal error: Type error not caught by type-checker (subtraction on strings)"
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (incorrect addition/subtraction types)"
+            Minus _ -> throwErr pos $ tcErrorMsg "subtraction on strings"
+        _ -> throwErr pos $ tcErrorMsg "incorrect addition/subtraction types"
 
 evalExpr (ERel pos e1 op e2) = do
     v1 <- evalExpr e1
@@ -277,21 +280,21 @@ evalExpr (ERel pos e1 op e2) = do
         (VBool b1, VBool b2) -> case op of
             EQU _ -> return $ VBool $ b1 == b2
             NE _ -> return $ VBool $ b1 /= b2
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (incorrect comparison types)"
+        _ -> throwErr pos $ tcErrorMsg "incorrect comparison types"
 
 evalExpr (EAnd pos e1 e2) = do
     v1 <- evalExpr e1
     v2 <- evalExpr e2
     case (v1, v2) of
         (VBool b1, VBool b2) -> return $ VBool $ b1 && b2
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected booleans)"
+        _ -> throwErr pos $ tcErrorMsg "expected bools"
 
 evalExpr (EOr pos e1 e2) = do
     v1 <- evalExpr e1
     v2 <- evalExpr e2
     case (v1, v2) of
         (VBool b1, VBool b2) -> return $ VBool $ b1 || b2
-        _ -> throwErr pos "Internal error: Type error not caught by type-checker (expected booleans)"
+        _ -> throwErr pos $ tcErrorMsg "expected bools"
 
 evalExpr (ETuple _ es) = do
     vs <- mapM evalExpr es
@@ -301,29 +304,29 @@ printInt :: [Value] -> IM Value
 printInt [VInt n] = do
     liftIO $ print n
     return $ VInt n
-printInt _ = throwErr Nothing "Internal error: Type error not caught by type-checker (incorrect call to printInt)"
+printInt _ = throwErr Nothing $ tcErrorMsg "incorrect call to printInt"
 
 printString :: [Value] -> IM Value
 printString [VStr s] = do
     liftIO $ putStrLn s
     return $ VStr s
-printString _ = throwErr Nothing "Internal error: Type error not caught by type-checker (incorrect call to printString)"
+printString _ = throwErr Nothing $ tcErrorMsg "incorrect call to printString"
 
 error :: [Value] -> IM Value
 error [] = throwErr Nothing "runtime error"
-error _ = throwErr Nothing "Internal error: Type error not caught by type-checker (incorrect call to error)"
+error _ = throwErr Nothing $ tcErrorMsg "incorrect call to error"
 
 readInt :: [Value] -> IM Value
 readInt [] = do
     n <- liftIO $ readLn
     return $ VInt n
-readInt _ = throwErr Nothing "Internal error: Type error not caught by type-checker (incorrect call to readInt)"
+readInt _ = throwErr Nothing $ tcErrorMsg "incorrect call to readInt"
 
 readString :: [Value] -> IM Value
 readString [] = do
     s <- liftIO $ getLine
     return $ VStr s
-readString _ = throwErr Nothing "Internal error: Type error not caught by type-checker (incorrect call to readString)"
+readString _ = throwErr Nothing $ tcErrorMsg "incorrect call to readString"
 
 execProgram :: Program -> IM Integer
 execProgram (Program _ topDefs) = do
@@ -339,12 +342,13 @@ execProgram (Program _ topDefs) = do
             ret <- phi []
             case ret of
                 VInt n -> return n
-                _ -> throwErr Nothing "main: Expected integer"
-        _ -> throwErr Nothing "main: Expected function"
+                _ -> throwErr Nothing $ tcErrorMsg "main has incorrect return type"
+        _ -> throwErr Nothing $ tcErrorMsg "main is not a function"
 
 interpret :: Program -> IO (Either ErrMsg Integer)
 interpret p = do
-    res <- runExceptT $ runStateT (execProgram p) $ IState Map.empty Map.empty 0
+    let initState = IState Map.empty Map.empty 0
+    res <- runExceptT $ runStateT (execProgram p) $ initState
     case res of
         Left err -> return $ Left err
         Right (n, _) -> return $ Right n

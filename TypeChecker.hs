@@ -39,31 +39,47 @@ convertType (Str _) = TStr
 convertType (Void _) = TVoid
 convertType (Tuple _ ts) = TTuple $ map convertType ts
 
-getType :: Pos -> Var -> TCM TType
-getType pos x = do
+getVarType :: Pos -> Var -> TCM TType
+getVarType pos x = do
     env <- gets env
     case Map.lookup x env of
         Just t -> return t
         Nothing -> throwErr pos $ "Variable " ++ x ++ " not in scope"
 
+getIdentType :: Pos -> Ident -> TCM TType
+getIdentType pos x = getVarType pos $ convertIdent x
+
 setType :: Var -> TType -> TCM ()
 setType x t = modify $ \s -> s { env = Map.insert x t (env s) }
 
+getEnv :: TCM (Map.Map Var TType)
+getEnv = gets env
+
+setEnv :: Map.Map Var TType -> TCM ()
+setEnv env = modify $ \s -> s { env = env }
+
+getLatestRet :: TCM TType
+getLatestRet = gets latestRet
+
+setLatestRet :: TType -> TCM ()
+setLatestRet t = modify $ \s -> s { latestRet = t }
+
 checkBlock :: Block -> TCM ()
 checkBlock (Block _ stmts) = do
-    oldEnv <- gets env
+    oldEnv <- getEnv
     mapM_ checkStmt stmts
-    modify $ \s -> s { env = oldEnv }
+    setEnv oldEnv
 
 checkFunc :: TopDef -> TCM ()
 checkFunc (FnDef _ t (Ident f) args b) = do
-    oldEnv <- gets env
-    oldRet <- gets latestRet
+    oldEnv <- getEnv
+    oldRet <- getLatestRet
     let argPairs = map (\(Arg _ t (Ident x)) -> (x, convertType t)) args
     mapM_ (\(x, t) -> setType x t) argPairs
-    modify $ \s -> s { latestRet = convertType t }
+    setLatestRet $ convertType t
     checkBlock b
-    modify $ \s -> s { env = oldEnv, latestRet = oldRet }
+    setEnv oldEnv
+    setLatestRet oldRet
 
 getItemIdent :: Item -> TCM (Pos, Var, TType, ItemType)
 getItemIdent (NoInit pos (Ident x)) = return (pos, x, TInt, AnyType)
@@ -85,21 +101,20 @@ addTopDef (FnDef _ t (Ident f) args b) = do
     let argTypes = map (\(Arg _ t _) -> convertType t) args
     setType f $ TFun (convertType t) argTypes b
 
+checkTupIndex :: Pos -> TType -> Integer -> TCM TType
+checkTupIndex pos (TTuple ts) i = 
+    if i >= 0 && (fromInteger i) < length ts
+        then return $ ts !! (fromInteger i)
+    else throwErr pos "Index out of bounds"
+checkTupIndex pos _ _ = throwErr pos "Indexing on non-tuple"
+
 checkIndHelper :: IndHelper -> TCM TType
 checkIndHelper (IndBase pos x i) = do
-    t <- getType pos $ convertIdent x
-    case t of
-        TTuple ts -> if i >= 0 && (fromInteger i) < length ts
-            then return $ ts !! (fromInteger i)
-        else throwErr pos "Index out of bounds"
-        _ -> throwErr pos "Indexing on non-tuple"
+    t <- getIdentType pos x
+    checkTupIndex pos t i
 checkIndHelper (IndRec pos ih i) = do
     t <- checkIndHelper ih
-    case t of
-        TTuple ts -> if i >= 0 && (fromInteger i) < length ts
-            then return $ ts !! (fromInteger i)
-        else throwErr pos "Index out of bounds"
-        _ -> throwErr pos "Indexing on non-tuple"
+    checkTupIndex pos t i
 
 checkStmt :: Stmt -> TCM ()
 
@@ -121,7 +136,7 @@ checkStmt (FDecl _ td) = do
     return ()
 
 checkStmt (Ass pos x e) = do
-    t <- getType pos $ convertIdent x
+    t <- getIdentType pos x
     t' <- checkExpr e
     if t == t'
         then setType (convertIdent x) t
@@ -129,14 +144,14 @@ checkStmt (Ass pos x e) = do
         throwErr pos "Type mismatch in assignment"
 
 checkStmt (Incr pos x) = do
-    t <- getType pos $ convertIdent x
+    t <- getIdentType pos x
     if t /= TInt
         then throwErr pos "Attempted to increment a non-integer"
     else
         return ()
 
 checkStmt (Decr pos x) = do
-    t <- getType pos $ convertIdent x
+    t <- getIdentType pos x
     if t /= TInt
         then throwErr pos "Attempted to decrement a non-integer"
     else
@@ -144,14 +159,14 @@ checkStmt (Decr pos x) = do
 
 checkStmt (Ret pos e) = do
     t <- checkExpr e
-    latestRet <- gets latestRet
+    latestRet <- getLatestRet
     if t /= latestRet
         then throwErr pos "Incorrect return type"
     else
         return ()
 
 checkStmt (VRet pos) = do
-    latestRet <- gets latestRet
+    latestRet <- getLatestRet
     if latestRet /= TVoid
         then throwErr pos "Incorrect return type"
     else
@@ -189,7 +204,7 @@ checkStmt (Break _) = return ()
 checkStmt (Continue _) = return ()
 
 checkExpr :: Expr -> TCM TType
-checkExpr (EVar pos x) = getType pos $ convertIdent x
+checkExpr (EVar pos x) = getIdentType pos x
 
 checkExpr (ELitInt _ _) = return TInt
 
@@ -198,7 +213,7 @@ checkExpr (ELitTrue _) = return TBool
 checkExpr (ELitFalse _) = return TBool
 
 checkExpr (EApp pos f args) = do
-    fType <- getType pos $ convertIdent f
+    fType <- getIdentType pos f
     case fType of
         TFun retType argTypes block -> do
             argTypes' <- mapM checkExpr args
@@ -216,13 +231,13 @@ checkExpr (Neg pos e) = do
     t <- checkExpr e
     if t == TInt
         then return TInt
-    else throwErr pos "Negation on non-integer"
+    else throwErr pos "Arithmetical negation on non-integer"
 
 checkExpr (Not pos e) = do
     t <- checkExpr e
     if t == TBool
         then return TBool
-    else throwErr pos "Negation on non-boolean"
+    else throwErr pos "Logical negation on non-boolean"
 
 checkExpr (EMul pos e1 _ e2) = do
     t1 <- checkExpr e1
@@ -240,7 +255,7 @@ checkExpr (EAdd pos e1 op e2) = do
         then do
             case op of
                 Plus _ -> return TStr
-                _ -> throwErr pos "Incorrect addition operator"
+                _ -> throwErr pos "Attempted to subtract two strings"
     else throwErr pos "Incorrect addition types"
 
 checkExpr (ERel pos e1 op e2) = do
@@ -258,16 +273,17 @@ checkExpr (ERel pos e1 op e2) = do
 checkExpr (EAnd pos e1 e2) = do
     t1 <- checkExpr e1
     t2 <- checkExpr e2
-    if t1 == TBool && t2 == TBool
-        then return TBool
-    else throwErr pos "And on non-booleans"
+    case (t1, t2) of
+        (TBool, TBool) -> return TBool
+        _ -> throwErr pos "And on non-booleans"
+
 
 checkExpr (EOr pos e1 e2) = do
     t1 <- checkExpr e1
     t2 <- checkExpr e2
-    if t1 == TBool && t2 == TBool
-        then return TBool
-    else throwErr pos "Or on non-booleans"
+    case (t1, t2) of
+        (TBool, TBool) -> return TBool
+        _ -> throwErr pos "Or on non-booleans"
 
 checkExpr (ETuple _ es) = do
     ts <- mapM checkExpr es
@@ -281,11 +297,16 @@ checkProgram (Program pos topDefs) = do
     setType "readString" $ TFun TStr [] $ Block pos []
     setType "error" $ TFun TVoid [] $ Block pos []
     mapM_ addTopDef topDefs
-    let mainExists = any (\(FnDef _ retType (Ident f) args _) -> f == "main" && convertType retType == TInt && args == []) topDefs
+    env <- getEnv
+    mainExists <- return $ Map.member "main" env
     if not mainExists
         then throwErr pos "No main function"
     else do
-        mapM_ checkFunc topDefs
+        f <- getIdentType pos $ Ident "main"
+        case f of
+            TFun TInt [] _ -> do
+                mapM_ checkFunc topDefs
+            _ -> throwErr pos "Main function has incorrect type"
 
 typeCheck :: Program -> Either ErrMsg ()
 typeCheck p = evalStateT (checkProgram p) $ initState where
