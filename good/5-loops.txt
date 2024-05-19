@@ -1,0 +1,20 @@
+int main () {
+    int i = 0;
+    int x = 0;
+    int y = 0;
+    while (i < 100) {
+        int j = 0;
+        while (j < 100) {
+            if (j >= 30) {
+                x++;
+            } else {
+                y++;
+            }
+            j++;
+        }
+        i++;
+    }
+    printInt(x); // 7000
+    printInt(y); // 3000
+    return 0;
+}

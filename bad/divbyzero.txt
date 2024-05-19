@@ -1,0 +1,4 @@
+int main() {
+    printInt(5 / (1 - 1)); // Division by zero
+    return 0;
+}

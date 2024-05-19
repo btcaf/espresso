@@ -1,0 +1,11 @@
+int main () {
+    int x = 2 + 2 * 2;
+    string y = "hello" + " " + "world";
+    printInt(x); // 6
+    printString(y); // hello world
+
+    if (false || true) {
+        printString("aaaaaa"); // aaaaaa
+    }
+    return 0;
+}

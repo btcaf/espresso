@@ -1,0 +1,4 @@
+int main() {
+    "aaaa" - "aa"; // Error
+    return 0;
+}

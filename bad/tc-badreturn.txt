@@ -1,0 +1,8 @@
+void add(int x, int y) {
+    return x + y;
+}
+
+int main() {
+    int c = add(1, 2, 3); // too many arguments
+    return 0;
+}

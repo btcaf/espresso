@@ -1,0 +1,8 @@
+int test() {
+    return "I'm a number"; // incorrect type
+}
+
+int main() {
+    printInt(test());
+    return 0;
+}

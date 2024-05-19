@@ -1,0 +1,6 @@
+int f() {} // does not return a value
+
+int main() {
+    f();
+    return 0;
+}

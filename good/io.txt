@@ -1,0 +1,6 @@
+int main () {
+    int x = readInt();
+    printInt(x);
+    string s = readString();
+    printString(s);
+}

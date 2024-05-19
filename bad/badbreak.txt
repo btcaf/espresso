@@ -1,0 +1,10 @@
+void f() {
+    break; // break outside of loop
+}
+
+int main() {
+    while (true) {
+        f();
+    }
+    return 0;
+}

@@ -1,0 +1,10 @@
+void f() {
+    f();
+}
+
+int main() {
+    while (true) {}
+    f();
+    1 && 1; // incorrect types
+    return 0;
+}

@@ -1,0 +1,17 @@
+void bigFunction(int x, string y, bool z, <int, <int, string>> t) {
+    printInt(x);
+    printString(y);
+    if (z) {
+        printString("true");
+    } else {
+        printString("false");
+    }
+    printInt(t[0]);
+    printInt(t[1][0]);
+    printString(t[1][1]);
+}
+
+int main() {
+    bigFunction(1, "hello", true, (2, (3, "world"))); // 1\nhello\ntrue\n2\n3\nworld
+    return 0;
+}

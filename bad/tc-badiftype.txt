@@ -1,0 +1,8 @@
+int main() {
+    if (2 + 2) { // non-boolean condition
+        printInt(13);
+    } else {
+        printInt(37);
+    }
+    return 0;
+}

@@ -1,0 +1,9 @@
+int main() {
+    {
+        void foo() {
+            return;
+        }
+    }
+    foo(); // not in scope
+    return 0;
+}
