@@ -4,7 +4,7 @@ int main () {
     string s;
     <int, <int, int>> z;
     printInt(x); // 0
-    if (y) {
+    if (!y) {
         printString(s + "test"); // "test"
     }
     printInt(z[0]); // 0

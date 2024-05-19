@@ -41,10 +41,10 @@ setLatestLoc :: Loc -> IM ()
 setLatestLoc latestLoc = modify $ \s -> s { latestLoc = latestLoc }
 
 tcErrorMsg :: String -> String
-tcErrorMsg s = "Internal error: Type error not caught by type-checker (" ++ s ++ ")"
+tcErrorMsg s = "Internal runtime error: Type error not caught by type-checker (" ++ s ++ ")"
 
 errMessage :: Pos -> String
-errMessage (Just (l, c)) = "Error in line " ++ show l ++ ", column " ++ show c ++ ": "
+errMessage (Just (l, c)) = "Runtime error in line " ++ show l ++ ", column " ++ show c ++ ": "
 errMessage Nothing = ""
 
 throwErr :: Pos -> String -> IM a
