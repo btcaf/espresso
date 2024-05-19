@@ -7,8 +7,8 @@ int main () {
     if (y) {
         printString(s + "test"); // "test"
     }
-    printInt(z[0]) // 0
-    printInt(z[1][0]) // 0
-    printInt(z[1][1]) // 0
+    printInt(z[0]); // 0
+    printInt(z[1][0]); // 0
+    printInt(z[1][1]); // 0
     return 0;
 }
