@@ -171,20 +171,20 @@ checkStmt (Break _) = return ()
 
 checkStmt (Continue _) = return ()
 
-checkTupIndex :: Pos -> TType -> Integer -> TCM TType
+checkTupIndex :: Pos -> TType -> Int -> TCM TType
 checkTupIndex pos (TTuple ts) i = 
-    if i >= 0 && (fromInteger i) < length ts
-        then return $ ts !! (fromInteger i)
+    if i >= 0 && i < length ts
+        then return $ ts !! i
     else throwErr pos "Index out of bounds"
 checkTupIndex pos _ _ = throwErr pos "Indexing on non-tuple"
 
 checkIndHelper :: IndHelper -> TCM TType
 checkIndHelper (IndBase pos x i) = do
     t <- getIdentType pos x
-    checkTupIndex pos t i
+    checkTupIndex pos t $ fromInteger i
 checkIndHelper (IndRec pos ih i) = do
     t <- checkIndHelper ih
-    checkTupIndex pos t i
+    checkTupIndex pos t $ fromInteger i
 
 checkBinLogical :: Pos -> Expr -> Expr -> TCM TType
 checkBinLogical pos e1 e2 = do

@@ -28,5 +28,5 @@ main = do
                         case interpretRes of
                             Left err -> errorExit err
                             Right 0 -> exitWith ExitSuccess
-                            Right n -> exitWith $ ExitFailure $ fromInteger n
+                            Right n -> exitWith $ ExitFailure n
         _ -> hPutStrLn stderr "Usage: ./interpreter <program>"

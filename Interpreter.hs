@@ -14,7 +14,7 @@ type Loc = Int
 type ErrMsg = String
 type Fun = [Value] -> IM Value
 
-data Value = VInt Integer | VBool Bool | VStr String | VVoid | VTuple [Value] | VFun Fun
+data Value = VInt Int | VBool Bool | VStr String | VVoid | VTuple [Value] | VFun Fun
 
 data IState = IState {
     env :: Map.Map Var Loc,
@@ -125,7 +125,7 @@ execStmts (stmt:stmts) = do
         Just exit -> return $ Just exit
         Nothing -> execStmts stmts
 
-execIncrOrDecr :: Pos -> Ident -> (Integer -> Integer -> Integer) -> IM (Maybe Exit)
+execIncrOrDecr :: Pos -> Ident -> (Int -> Int -> Int) -> IM (Maybe Exit)
 execIncrOrDecr pos x op = do
     v <- getValue pos $ convertIdent x
     case v of
@@ -199,21 +199,21 @@ execStmt (Break pos) = do
 execStmt (Continue pos) = do
     return $ Just $ EContinue pos
 
-evalTupIndex :: Pos -> Value -> Integer -> IM Value
+evalTupIndex :: Pos -> Value -> Int -> IM Value
 evalTupIndex pos v i =
     case v of
-        VTuple ts -> if i >= 0 && (fromInteger i) < length ts
-            then return $ ts !! (fromInteger i)
+        VTuple ts -> if i >= 0 && i < length ts
+            then return $ ts !! i
             else throwErr pos $ tcErrorMsg "index out of bounds"
         _ -> throwErr pos $ tcErrorMsg "expected tuple"
 
 evalIndHelper :: IndHelper -> IM Value
 evalIndHelper (IndBase pos x i) = do
     v <- getValue pos $ convertIdent x
-    evalTupIndex pos v i
+    evalTupIndex pos v $ fromInteger i
 evalIndHelper (IndRec pos ih i) = do
     v <- evalIndHelper ih
-    evalTupIndex pos v i
+    evalTupIndex pos v $ fromInteger i
 
 evalBinLogical :: Pos -> Expr -> (Bool -> Bool -> Bool) -> Expr -> IM Value
 evalBinLogical pos e1 op e2 = do
@@ -226,7 +226,7 @@ evalBinLogical pos e1 op e2 = do
 evalExpr :: Expr -> IM Value
 evalExpr (EVar pos x) = getValue pos $ convertIdent x
 
-evalExpr (ELitInt _ n) = return $ VInt n
+evalExpr (ELitInt _ n) = return $ VInt $ fromInteger n
 
 evalExpr (ELitTrue _) = return $ VBool True
 
@@ -320,7 +320,7 @@ printString [VStr s] = do
 printString _ = throwErr Nothing $ tcErrorMsg "incorrect call to printString"
 
 error :: [Value] -> IM Value
-error [] = throwErr Nothing "runtime error"
+error [] = throwErr Nothing "Runtime error: error() function called"
 error _ = throwErr Nothing $ tcErrorMsg "incorrect call to error"
 
 readInt :: [Value] -> IM Value
@@ -335,7 +335,7 @@ readString [] = do
     return $ VStr s
 readString _ = throwErr Nothing $ tcErrorMsg "incorrect call to readString"
 
-execProgram :: Program -> IM Integer
+execProgram :: Program -> IM Int
 execProgram (Program _ topDefs) = do
     setNewValue "printInt" $ VFun printInt
     setNewValue "printString" $ VFun printString
@@ -352,7 +352,7 @@ execProgram (Program _ topDefs) = do
                 _ -> throwErr Nothing $ tcErrorMsg "main has incorrect return type"
         _ -> throwErr Nothing $ tcErrorMsg "main is not a function"
 
-interpret :: Program -> IO (Either ErrMsg Integer)
+interpret :: Program -> IO (Either ErrMsg Int)
 interpret p = do
     let initState = IState Map.empty Map.empty 0
     res <- runExceptT $ runStateT (execProgram p) $ initState
