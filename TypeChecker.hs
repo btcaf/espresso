@@ -101,6 +101,21 @@ addTopDef (FnDef _ t (Ident f) args b) = do
     let argTypes = map (\(Arg _ t _) -> convertType t) args
     setType f $ TFun (convertType t) argTypes b
 
+checkIncrOrDecr :: Pos -> Ident -> TCM ()
+checkIncrOrDecr pos x = do
+    t <- getIdentType pos x
+    if t /= TInt
+        then throwErr pos "Attempted to increment/decrement a non-integer"
+    else return ()
+
+checkIfOrWhile :: Pos -> Expr -> [Stmt] -> TCM ()
+checkIfOrWhile pos e ss = do
+    t <- checkExpr e
+    if t /= TBool
+        then throwErr pos "Non-boolean condition"
+    else do
+        mapM_ (\s -> checkBlock (Block Nothing [s])) ss
+
 checkStmt :: Stmt -> TCM ()
 
 checkStmt (Empty _) = return ()
@@ -113,12 +128,10 @@ checkStmt (Decl pos t items) = do
         then throwErr pos "Cannot declare void"
     else do
         mapM_ (checkItem t') items
-        return ()
 
 checkStmt (FDecl _ td) = do
     addTopDef td
     checkFunc td
-    return ()
 
 checkStmt (Ass pos x e) = do
     t <- getIdentType pos x
@@ -127,17 +140,9 @@ checkStmt (Ass pos x e) = do
         then setType (convertIdent x) t
     else throwErr pos "Type mismatch in assignment"
 
-checkStmt (Incr pos x) = do
-    t <- getIdentType pos x
-    if t /= TInt
-        then throwErr pos "Attempted to increment a non-integer"
-    else return ()
+checkStmt (Incr pos x) = checkIncrOrDecr pos x
 
-checkStmt (Decr pos x) = do
-    t <- getIdentType pos x
-    if t /= TInt
-        then throwErr pos "Attempted to decrement a non-integer"
-    else return ()
+checkStmt (Decr pos x) = checkIncrOrDecr pos x
 
 checkStmt (Ret pos e) = do
     t <- checkExpr e
@@ -152,28 +157,11 @@ checkStmt (VRet pos) = do
         then throwErr pos "Incorrect return type"
     else return ()
 
-checkStmt (Cond pos e s) = do
-    t <- checkExpr e
-    if t /= TBool
-        then throwErr pos "Non-boolean condition"
-    else do
-        checkBlock (Block Nothing [s])
+checkStmt (Cond pos e s) = checkIfOrWhile pos e [s]
 
+checkStmt (CondElse pos e s1 s2) = checkIfOrWhile pos e [s1, s2]
 
-checkStmt (CondElse pos e s1 s2) = do
-    t <- checkExpr e
-    if t /= TBool
-        then throwErr pos "Non-boolean condition"
-    else do
-        checkBlock (Block Nothing [s1])
-        checkBlock (Block Nothing [s2])
-
-checkStmt (While pos e s) = do
-    t <- checkExpr e
-    if t /= TBool
-        then throwErr pos "Non-boolean condition"
-    else do
-        checkBlock (Block Nothing [s])
+checkStmt (While pos e s) = checkIfOrWhile pos e [s]
 
 checkStmt (SExp _ e) = do
     checkExpr e

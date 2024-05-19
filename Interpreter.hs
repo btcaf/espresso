@@ -125,6 +125,15 @@ execStmts (stmt:stmts) = do
         Just exit -> return $ Just exit
         Nothing -> execStmts stmts
 
+execIncrOrDecr :: Pos -> Ident -> (Integer -> Integer -> Integer) -> IM (Maybe Exit)
+execIncrOrDecr pos x op = do
+    v <- getValue pos $ convertIdent x
+    case v of
+        VInt n -> do
+            setValue pos (convertIdent x) (VInt (n `op` 1))
+            return Nothing
+        _ -> throwErr pos $ tcErrorMsg "expected int"
+
 execStmt :: Stmt -> IM (Maybe Exit)
 
 execStmt (Empty _) = return Nothing
@@ -144,21 +153,9 @@ execStmt (Ass pos x e) = do
     setValue pos (convertIdent x) v
     return Nothing
 
-execStmt (Incr pos x) = do
-    val <- getValue pos $ convertIdent x
-    case val of
-        VInt n -> do
-            setValue pos (convertIdent x) (VInt (n + 1))
-            return Nothing
-        _ -> throwErr pos $ tcErrorMsg "expected int"
+execStmt (Incr pos x) = execIncrOrDecr pos x (+)
 
-execStmt (Decr pos x) = do
-    val <- getValue pos $ convertIdent x
-    case val of
-        VInt n -> do
-            setValue pos (convertIdent x) (VInt (n - 1))
-            return Nothing
-        _ -> throwErr pos $ tcErrorMsg "expected int"
+execStmt (Decr pos x) = execIncrOrDecr pos x (-)
 
 execStmt (Ret _ e) = do
     v <- evalExpr e
@@ -313,13 +310,13 @@ evalExpr (ETuple _ es) = do
 printInt :: [Value] -> IM Value
 printInt [VInt n] = do
     liftIO $ print n
-    return $ VInt n
+    return VVoid
 printInt _ = throwErr Nothing $ tcErrorMsg "incorrect call to printInt"
 
 printString :: [Value] -> IM Value
 printString [VStr s] = do
     liftIO $ putStrLn s
-    return $ VStr s
+    return VVoid
 printString _ = throwErr Nothing $ tcErrorMsg "incorrect call to printString"
 
 error :: [Value] -> IM Value
