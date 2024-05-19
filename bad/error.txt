@@ -1,5 +1,5 @@
 int main() {
     error(); // "runtime error"
-    printString("does not print")
+    printString("does not print");
     return 0;
 }

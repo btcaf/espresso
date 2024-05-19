@@ -1,8 +1,8 @@
-int test() {
-    return "I'm a number"; // incorrect type
+void add(int x, int y) {
+    return x + y;
 }
 
 int main() {
-    printInt(test());
+    int c = add(1, 2, 3); // too many arguments
     return 0;
 }
