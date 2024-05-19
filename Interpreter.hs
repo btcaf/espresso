@@ -28,6 +28,18 @@ type IM = StateT IState (ExceptT ErrMsg IO)
 
 type Pos = BNFC'Position
 
+getEnv :: IM (Map.Map Var Loc)
+getEnv = gets env
+
+setEnv :: Map.Map Var Loc -> IM ()
+setEnv env = modify $ \s -> s { env = env }
+
+getLatestLoc :: IM (Loc)
+getLatestLoc = gets latestLoc
+
+setLatestLoc :: Loc -> IM ()
+setLatestLoc latestLoc = modify $ \s -> s { latestLoc = latestLoc }
+
 tcErrorMsg :: String -> String
 tcErrorMsg s = "Internal error: Type error not caught by type-checker (" ++ s ++ ")"
 
@@ -43,13 +55,13 @@ convertIdent (Ident x) = x
 
 newLoc :: IM Loc
 newLoc = do
-    loc <- gets latestLoc
-    modify $ \s -> s { latestLoc = loc + 1 }
+    loc <- getLatestLoc
+    setLatestLoc $ loc + 1
     return $ loc + 1
 
 getValue :: Pos -> Var -> IM Value
 getValue pos x = do
-    env <- gets env
+    env <- getEnv
     case Map.lookup x env of
         Just loc -> do
             store <- gets store
@@ -60,7 +72,7 @@ getValue pos x = do
 
 setValue :: Pos -> Var -> Value -> IM ()
 setValue pos x v = do
-    env <- gets env
+    env <- getEnv
     case Map.lookup x env of
         Just loc -> modify $ \s -> s { store = Map.insert loc v (store s) }
         Nothing -> throwErr pos $ tcErrorMsg $ "variable " ++ x ++ " not in scope"
@@ -72,12 +84,12 @@ setNewValue x v = do
 
 addTopDef :: TopDef -> IM ()
 addTopDef (FnDef pos t (Ident f) args b) = setNewValue f $ VFun $ fix $ \phi argVals -> do
-    oldEnv <- gets env
+    oldEnv <- getEnv
     let argPairs = zip (map (\(Arg _ t (Ident x)) -> x) args) argVals
     mapM_ (\(x, v) -> setNewValue x v) argPairs
     setNewValue f $ VFun phi
     ret <- execBlock b
-    modify $ \s -> s { env = oldEnv }
+    setEnv oldEnv
     case ret of
         Just (EReturn v) -> return v
         Just (EBreak pos) -> throwErr pos "Break outside loop"
@@ -100,9 +112,9 @@ execItem t (Init _ x e) = do
 
 execBlock :: Block -> IM (Maybe Exit)
 execBlock (Block _ stmts) = do
-    oldEnv <- gets env
+    oldEnv <- getEnv
     ret <- execStmts stmts
-    modify $ \s -> s { env = oldEnv }
+    setEnv oldEnv
     return ret
 
 execStmts :: [Stmt] -> IM (Maybe Exit)
@@ -112,22 +124,6 @@ execStmts (stmt:stmts) = do
     case ret of
         Just exit -> return $ Just exit
         Nothing -> execStmts stmts
-
-evalIndHelper :: IndHelper -> IM Value
-evalIndHelper (IndBase pos x i) = do
-    t <- getValue pos $ convertIdent x
-    case t of
-        VTuple ts -> if i >= 0 && (fromInteger i) < length ts
-            then return $ ts !! (fromInteger i)
-            else throwErr pos $ tcErrorMsg "index out of bounds"
-        _ -> throwErr pos $ tcErrorMsg "expected tuple"
-evalIndHelper (IndRec pos ih i) = do
-    v <- evalIndHelper ih
-    case v of
-        VTuple ts -> if i >= 0 && (fromInteger i) < length ts
-            then return $ ts !! (fromInteger i)
-            else throwErr pos $ tcErrorMsg "index out of bounds"
-        _ -> throwErr pos $ tcErrorMsg "expected tuple"
 
 execStmt :: Stmt -> IM (Maybe Exit)
 
@@ -140,7 +136,7 @@ execStmt (Decl _ t items) = do
     return Nothing
 
 execStmt (FDecl _ td) = do
-    _ <- addTopDef td
+    addTopDef td
     return Nothing
 
 execStmt (Ass pos x e) = do
@@ -197,7 +193,7 @@ execStmt (While pos e s) = do
         _ -> throwErr pos $ tcErrorMsg "expected bool"
 
 execStmt (SExp _ e) = do
-    _ <- evalExpr e
+    evalExpr e
     return Nothing
 
 execStmt (Break pos) = do
@@ -205,6 +201,30 @@ execStmt (Break pos) = do
 
 execStmt (Continue pos) = do
     return $ Just $ EContinue pos
+
+evalTupIndex :: Pos -> Value -> Integer -> IM Value
+evalTupIndex pos v i =
+    case v of
+        VTuple ts -> if i >= 0 && (fromInteger i) < length ts
+            then return $ ts !! (fromInteger i)
+            else throwErr pos $ tcErrorMsg "index out of bounds"
+        _ -> throwErr pos $ tcErrorMsg "expected tuple"
+
+evalIndHelper :: IndHelper -> IM Value
+evalIndHelper (IndBase pos x i) = do
+    v <- getValue pos $ convertIdent x
+    evalTupIndex pos v i
+evalIndHelper (IndRec pos ih i) = do
+    v <- evalIndHelper ih
+    evalTupIndex pos v i
+
+evalBinLogical :: Pos -> Expr -> (Bool -> Bool -> Bool) -> Expr -> IM Value
+evalBinLogical pos e1 op e2 = do
+    v1 <- evalExpr e1
+    v2 <- evalExpr e2
+    case (v1, v2) of
+        (VBool b1, VBool b2) -> return $ VBool $ b1 `op` b2
+        _ -> throwErr pos $ tcErrorMsg "expected bools"
 
 evalExpr :: Expr -> IM Value
 evalExpr (EVar pos x) = getValue pos $ convertIdent x
@@ -282,19 +302,9 @@ evalExpr (ERel pos e1 op e2) = do
             NE _ -> return $ VBool $ b1 /= b2
         _ -> throwErr pos $ tcErrorMsg "incorrect comparison types"
 
-evalExpr (EAnd pos e1 e2) = do
-    v1 <- evalExpr e1
-    v2 <- evalExpr e2
-    case (v1, v2) of
-        (VBool b1, VBool b2) -> return $ VBool $ b1 && b2
-        _ -> throwErr pos $ tcErrorMsg "expected bools"
+evalExpr (EAnd pos e1 e2) = evalBinLogical pos e1 (&&) e2
 
-evalExpr (EOr pos e1 e2) = do
-    v1 <- evalExpr e1
-    v2 <- evalExpr e2
-    case (v1, v2) of
-        (VBool b1, VBool b2) -> return $ VBool $ b1 || b2
-        _ -> throwErr pos $ tcErrorMsg "expected bools"
+evalExpr (EOr pos e1 e2) = evalBinLogical pos e1 (||) e2
 
 evalExpr (ETuple _ es) = do
     vs <- mapM evalExpr es
@@ -336,8 +346,8 @@ execProgram (Program _ topDefs) = do
     setNewValue "readInt" $ VFun readInt
     setNewValue "readString" $ VFun readString
     mapM_ addTopDef topDefs
-    val <- getValue Nothing "main"
-    case val of
+    vmain <- getValue Nothing "main"
+    case vmain of
         VFun phi -> do
             ret <- phi []
             case ret of

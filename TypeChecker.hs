@@ -22,6 +22,18 @@ type TCM = StateT TCState (Either ErrMsg)
 
 type Pos = BNFC'Position
 
+getEnv :: TCM (Map.Map Var TType)
+getEnv = gets env
+
+setEnv :: Map.Map Var TType -> TCM ()
+setEnv env = modify $ \s -> s { env = env }
+
+getLatestRet :: TCM TType
+getLatestRet = gets latestRet
+
+setLatestRet :: TType -> TCM ()
+setLatestRet t = modify $ \s -> s { latestRet = t }
+
 errMessage :: Pos -> String
 errMessage (Just (l, c)) = "Error in line " ++ show l ++ ", column " ++ show c ++ ": "
 errMessage Nothing = ""
@@ -41,7 +53,7 @@ convertType (Tuple _ ts) = TTuple $ map convertType ts
 
 getVarType :: Pos -> Var -> TCM TType
 getVarType pos x = do
-    env <- gets env
+    env <- getEnv
     case Map.lookup x env of
         Just t -> return t
         Nothing -> throwErr pos $ "Variable " ++ x ++ " not in scope"
@@ -51,18 +63,6 @@ getIdentType pos x = getVarType pos $ convertIdent x
 
 setType :: Var -> TType -> TCM ()
 setType x t = modify $ \s -> s { env = Map.insert x t (env s) }
-
-getEnv :: TCM (Map.Map Var TType)
-getEnv = gets env
-
-setEnv :: Map.Map Var TType -> TCM ()
-setEnv env = modify $ \s -> s { env = env }
-
-getLatestRet :: TCM TType
-getLatestRet = gets latestRet
-
-setLatestRet :: TType -> TCM ()
-setLatestRet t = modify $ \s -> s { latestRet = t }
 
 checkBlock :: Block -> TCM ()
 checkBlock (Block _ stmts) = do
@@ -101,21 +101,6 @@ addTopDef (FnDef _ t (Ident f) args b) = do
     let argTypes = map (\(Arg _ t _) -> convertType t) args
     setType f $ TFun (convertType t) argTypes b
 
-checkTupIndex :: Pos -> TType -> Integer -> TCM TType
-checkTupIndex pos (TTuple ts) i = 
-    if i >= 0 && (fromInteger i) < length ts
-        then return $ ts !! (fromInteger i)
-    else throwErr pos "Index out of bounds"
-checkTupIndex pos _ _ = throwErr pos "Indexing on non-tuple"
-
-checkIndHelper :: IndHelper -> TCM TType
-checkIndHelper (IndBase pos x i) = do
-    t <- getIdentType pos x
-    checkTupIndex pos t i
-checkIndHelper (IndRec pos ih i) = do
-    t <- checkIndHelper ih
-    checkTupIndex pos t i
-
 checkStmt :: Stmt -> TCM ()
 
 checkStmt (Empty _) = return ()
@@ -140,37 +125,32 @@ checkStmt (Ass pos x e) = do
     t' <- checkExpr e
     if t == t'
         then setType (convertIdent x) t
-    else
-        throwErr pos "Type mismatch in assignment"
+    else throwErr pos "Type mismatch in assignment"
 
 checkStmt (Incr pos x) = do
     t <- getIdentType pos x
     if t /= TInt
         then throwErr pos "Attempted to increment a non-integer"
-    else
-        return ()
+    else return ()
 
 checkStmt (Decr pos x) = do
     t <- getIdentType pos x
     if t /= TInt
         then throwErr pos "Attempted to decrement a non-integer"
-    else
-        return ()
+    else return ()
 
 checkStmt (Ret pos e) = do
     t <- checkExpr e
     latestRet <- getLatestRet
     if t /= latestRet
         then throwErr pos "Incorrect return type"
-    else
-        return ()
+    else return ()
 
 checkStmt (VRet pos) = do
     latestRet <- getLatestRet
     if latestRet /= TVoid
         then throwErr pos "Incorrect return type"
-    else
-        return ()
+    else return ()
 
 checkStmt (Cond pos e s) = do
     t <- checkExpr e
@@ -196,12 +176,35 @@ checkStmt (While pos e s) = do
         checkBlock (Block Nothing [s])
 
 checkStmt (SExp _ e) = do
-    _ <- checkExpr e
+    checkExpr e
     return ()
 
 checkStmt (Break _) = return ()
 
 checkStmt (Continue _) = return ()
+
+checkTupIndex :: Pos -> TType -> Integer -> TCM TType
+checkTupIndex pos (TTuple ts) i = 
+    if i >= 0 && (fromInteger i) < length ts
+        then return $ ts !! (fromInteger i)
+    else throwErr pos "Index out of bounds"
+checkTupIndex pos _ _ = throwErr pos "Indexing on non-tuple"
+
+checkIndHelper :: IndHelper -> TCM TType
+checkIndHelper (IndBase pos x i) = do
+    t <- getIdentType pos x
+    checkTupIndex pos t i
+checkIndHelper (IndRec pos ih i) = do
+    t <- checkIndHelper ih
+    checkTupIndex pos t i
+
+checkBinLogical :: Pos -> Expr -> Expr -> TCM TType
+checkBinLogical pos e1 e2 = do
+    t1 <- checkExpr e1
+    t2 <- checkExpr e2
+    case (t1, t2) of
+        (TBool, TBool) -> return TBool
+        _ -> throwErr pos "Logical operation on non-booleans"
 
 checkExpr :: Expr -> TCM TType
 checkExpr (EVar pos x) = getIdentType pos x
@@ -218,8 +221,7 @@ checkExpr (EApp pos f args) = do
         TFun retType argTypes block -> do
             argTypes' <- mapM checkExpr args
             if argTypes == argTypes'
-                then do
-                    return retType
+                then return retType
             else throwErr pos "Type mismatch in function application"
         _ -> throwErr pos "Function application on non-function"
 
@@ -242,48 +244,39 @@ checkExpr (Not pos e) = do
 checkExpr (EMul pos e1 _ e2) = do
     t1 <- checkExpr e1
     t2 <- checkExpr e2
-    if t1 == TInt && t2 == TInt
-        then return TInt
-    else throwErr pos "Multiplication on non-integers"
+    case (t1, t2) of
+        (TInt, TInt) -> return TInt
+        _ -> throwErr pos "Multiplication on non-integers"
 
 checkExpr (EAdd pos e1 op e2) = do
     t1 <- checkExpr e1
     t2 <- checkExpr e2
-    if t1 == TInt && t2 == TInt
-        then return TInt
-    else if t1 == TStr && t2 == TStr
-        then do
+    case (t1, t2) of
+        (TInt, TInt) -> return TInt
+        (TStr, TStr) -> do
             case op of
                 Plus _ -> return TStr
                 _ -> throwErr pos "Attempted to subtract two strings"
-    else throwErr pos "Incorrect addition types"
+        _ -> throwErr pos "Incorrect addition/subtraction types"
 
 checkExpr (ERel pos e1 op e2) = do
     t1 <- checkExpr e1
     t2 <- checkExpr e2
-    if (t1 == TBool && t2 == TBool) || (t1 == TStr && t2 == TStr)
-        then case op of
+    case (t1, t2) of
+        (TInt, TInt) -> return TBool
+        (TBool, TBool) -> isEqOp op
+        (TStr, TStr) -> isEqOp op
+        _ -> throwErr pos "Comparison on illegal types"
+    where 
+        isEqOp :: RelOp -> TCM TType
+        isEqOp op = case op of
             EQU _ -> return TBool
             NE _ -> return TBool
             _ -> throwErr pos "Incorrect comparison operator"
-    else if t1 == t2
-        then return TBool
-    else throwErr pos "Comparison on different types"
 
-checkExpr (EAnd pos e1 e2) = do
-    t1 <- checkExpr e1
-    t2 <- checkExpr e2
-    case (t1, t2) of
-        (TBool, TBool) -> return TBool
-        _ -> throwErr pos "And on non-booleans"
+checkExpr (EAnd pos e1 e2) = checkBinLogical pos e1 e2
 
-
-checkExpr (EOr pos e1 e2) = do
-    t1 <- checkExpr e1
-    t2 <- checkExpr e2
-    case (t1, t2) of
-        (TBool, TBool) -> return TBool
-        _ -> throwErr pos "Or on non-booleans"
+checkExpr (EOr pos e1 e2) = checkBinLogical pos e1 e2
 
 checkExpr (ETuple _ es) = do
     ts <- mapM checkExpr es
