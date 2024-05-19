@@ -3,4 +3,5 @@ int main () {
     printInt(x);
     string s = readString();
     printString(s);
+    return 0;
 }
