@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 
 import GeneratedParser.AbsEspresso
 
-data TType = TInt | TBool | TStr | TVoid | TTuple [TType] | TFun TType [TType] Block deriving Eq
+data TType = TInt | TBool | TStr | TVoid | TTuple [TType] | TFun TType [TType] deriving Eq
 
 data ItemType = TType | AnyType deriving Eq
 
@@ -71,15 +71,24 @@ checkBlock (Block _ stmts) = do
     setEnv oldEnv
 
 checkFunc :: TopDef -> TCM ()
-checkFunc (FnDef _ t (Ident f) args b) = do
+checkFunc (FnDef pos t (Ident f) args b) = do
     oldEnv <- getEnv
     oldRet <- getLatestRet
     let argPairs = map (\(Arg _ t (Ident x)) -> (x, convertType t)) args
-    mapM_ (\(x, t) -> setType x t) argPairs
-    setLatestRet $ convertType t
-    checkBlock b
-    setEnv oldEnv
-    setLatestRet oldRet
+    let voidArgs = filter (\(_, t) -> t == TVoid) argPairs
+    if not $ null voidArgs
+        then throwErr pos "Function argument cannot be void"
+    else do
+        -- check for duplicates
+        let duplicates = filter (\(x, _) -> length (filter (\(x', _) -> x == x') argPairs) > 1) argPairs
+        if not $ null duplicates
+            then throwErr pos "Function arguments must have unique identifiers"
+        else do
+            mapM_ (\(x, t) -> setType x t) argPairs
+            setLatestRet $ convertType t
+            checkBlock b
+            setEnv oldEnv
+            setLatestRet oldRet
 
 getItemIdent :: Item -> TCM (Pos, Var, TType, ItemType)
 getItemIdent (NoInit pos (Ident x)) = return (pos, x, TInt, AnyType)
@@ -99,7 +108,7 @@ checkItem t item = do
 addTopDef :: TopDef -> TCM ()
 addTopDef (FnDef _ t (Ident f) args b) = do
     let argTypes = map (\(Arg _ t _) -> convertType t) args
-    setType f $ TFun (convertType t) argTypes b
+    setType f $ TFun (convertType t) argTypes
 
 checkIncrOrDecr :: Pos -> Ident -> TCM ()
 checkIncrOrDecr pos x = do
@@ -133,7 +142,7 @@ checkStmt (FDecl _ td) = do
     addTopDef td
     checkFunc td
 
-checkStmt (Ass pos x e) = do
+checkStmt (Ass pos x e) = do -- TODO tuple
     t <- getIdentType pos x
     t' <- checkExpr e
     if t == t'
@@ -206,7 +215,7 @@ checkExpr (ELitFalse _) = return TBool
 checkExpr (EApp pos f args) = do
     fType <- getIdentType pos f
     case fType of
-        TFun retType argTypes block -> do
+        TFun retType argTypes -> do
             argTypes' <- mapM checkExpr args
             if argTypes == argTypes'
                 then return retType
@@ -272,11 +281,11 @@ checkExpr (ETuple _ es) = do
 
 checkProgram :: Program -> TCM ()
 checkProgram (Program pos topDefs) = do
-    setType "printInt" $ TFun TVoid [TInt] $ Block pos []
-    setType "printString" $ TFun TVoid [TStr] $ Block pos []
-    setType "readInt" $ TFun TInt [] $ Block pos []
-    setType "readString" $ TFun TStr [] $ Block pos []
-    setType "error" $ TFun TVoid [] $ Block pos []
+    setType "printInt" $ TFun TVoid [TInt]
+    setType "printString" $ TFun TVoid [TStr]
+    setType "readInt" $ TFun TInt []
+    setType "readString" $ TFun TStr []
+    setType "error" $ TFun TVoid []
     mapM_ addTopDef topDefs
     env <- getEnv
     mainExists <- return $ Map.member "main" env
@@ -285,7 +294,7 @@ checkProgram (Program pos topDefs) = do
     else do
         f <- getIdentType pos $ Ident "main"
         case f of
-            TFun TInt [] _ -> do
+            TFun TInt [] -> do
                 mapM_ checkFunc topDefs
             _ -> throwErr pos "Main function has incorrect type"
 

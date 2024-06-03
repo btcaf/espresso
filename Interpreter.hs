@@ -167,22 +167,22 @@ execStmt (VRet _) = do
 execStmt (Cond pos e s) = do
     v <- evalExpr e
     case v of
-        VBool True -> execStmt s
+        VBool True -> execBlock $ Block Nothing [s]
         VBool False -> return Nothing
         _ -> throwErr pos $ tcErrorMsg "expected bool"
 
 execStmt (CondElse pos e s1 s2) = do
     v <- evalExpr e
     case v of
-        VBool True -> execStmt s1
-        VBool False -> execStmt s2
+        VBool True -> execBlock $ Block Nothing [s]
+        VBool False -> execBlock $ Block Nothing [s]
         _ -> throwErr pos $ tcErrorMsg "expected bool"
 
 execStmt (While pos e s) = do
     v <- evalExpr e
     case v of
         VBool True -> do
-            ret <- execStmt s
+            ret <- execBlock $ Block Nothing [s]
             case ret of
                 Just (EBreak _) -> return Nothing
                 _ -> execStmt (While pos e s)
@@ -237,7 +237,7 @@ evalExpr (EApp pos f args) = do
     case val of
         VFun phi -> do
             argVals <- mapM evalExpr args
-            phi argVals
+            phi argVals -- TODO wykonywane w aktualnym stanie
         _ -> throwErr pos $ tcErrorMsg "expected function"
 
 evalExpr (Ind pos ih) = evalIndHelper ih
