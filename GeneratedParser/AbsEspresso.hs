@@ -74,6 +74,7 @@ data Expr' a
     | ELitTrue a
     | ELitFalse a
     | EApp a Ident [Expr' a]
+    | ETuple a [Expr' a]
     | Ind a (IndHelper' a)
     | EString a String
     | Neg a (Expr' a)
@@ -83,7 +84,6 @@ data Expr' a
     | ERel a (Expr' a) (RelOp' a) (Expr' a)
     | EAnd a (Expr' a) (Expr' a)
     | EOr a (Expr' a) (Expr' a)
-    | ETuple a [Expr' a]
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
 type IndHelper = IndHelper' BNFC'Position
@@ -176,6 +176,7 @@ instance HasPosition Expr where
     ELitTrue p -> p
     ELitFalse p -> p
     EApp p _ _ -> p
+    ETuple p _ -> p
     Ind p _ -> p
     EString p _ -> p
     Neg p _ -> p
@@ -185,7 +186,6 @@ instance HasPosition Expr where
     ERel p _ _ _ -> p
     EAnd p _ _ -> p
     EOr p _ _ -> p
-    ETuple p _ -> p
 
 instance HasPosition IndHelper where
   hasPosition = \case

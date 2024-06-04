@@ -224,6 +224,14 @@ evalBinLogical pos e1 op e2 = do
         (VBool b1, VBool b2) -> return $ VBool $ b1 `op` b2
         _ -> throwErr pos $ tcErrorMsg "expected bools"
 
+compareNonFunction :: Value -> Value -> IM Bool
+compareNonFunction (VInt n1) (VInt n2) = return $ n1 == n2
+compareNonFunction (VBool b1) (VBool b2) = return $ b1 == b2
+compareNonFunction (VStr s1) (VStr s2) = return $ s1 == s2
+compareNonFunction (VTuple ts1) (VTuple ts2) = do
+    bs <- mapM (uncurry compareNonFunction) $ zip ts1 ts2
+    return $ and bs
+
 evalExpr :: Expr -> IM Value
 evalExpr (EVar pos x) = getValue pos $ convertIdent x
 
@@ -302,6 +310,13 @@ evalExpr (ERel pos e1 op e2) = do
         (VBool b1, VBool b2) -> case op of
             EQU _ -> return $ VBool $ b1 == b2
             NE _ -> return $ VBool $ b1 /= b2
+        (VTuple ts1, VTuple ts2) -> case op of
+            EQU _ -> do
+                b <- compareNonFunction v1 v2
+                return $ VBool b
+            NE _ -> do
+                b <- compareNonFunction v1 v2
+                return $ VBool $ not b
         _ -> throwErr pos $ tcErrorMsg "incorrect comparison types"
 
 evalExpr (EAnd pos e1 e2) = evalBinLogical pos e1 (&&) e2

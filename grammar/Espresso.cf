@@ -82,6 +82,8 @@ ELitFalse. Expr6 ::= "false" ;
 
 EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
+ETuple.    Expr6 ::= "[" [Expr] "]" ;
+
 IndBase.   IndHelper ::= Ident "[" Integer "]" ;
 
 IndRec.    IndHelper ::= IndHelper "[" Integer "]" ;
@@ -103,8 +105,6 @@ ERel.      Expr2 ::= Expr2 RelOp Expr3 ;
 EAnd.      Expr1 ::= Expr2 "&&" Expr1 ;
 
 EOr.       Expr ::= Expr1 "||" Expr ;
-
-ETuple.    Expr ::= "[" [Expr] "]" ;
 
 coercions  Expr 6 ;
 

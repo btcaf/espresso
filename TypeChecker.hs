@@ -262,6 +262,9 @@ checkExpr (ERel pos e1 op e2) = do
         (TInt, TInt) -> return TBool
         (TBool, TBool) -> isEqOp op
         (TStr, TStr) -> isEqOp op
+        (TTuple ts1, TTuple ts2) -> if ts1 == ts2
+            then isEqOp op
+        else throwErr pos "Comparison on tuples of different types"
         _ -> throwErr pos "Comparison on illegal types"
     where 
         isEqOp :: RelOp -> TCM TType
