@@ -17,3 +17,41 @@ Zmiany w gramatyce: listy mają zmienioną składnię (z nawiasami kwadratowymi)
 Zmiany w kodzie: naprawa wiązania statycznego, naprawa dodawania top-level funkcji, przekazywanie przez referencję, usunięcie zbędnych błędów "out of bounds" w runtimie, pattern matching i porównywanie tupli, wyrzucenie bloku z TFun, sprawdzanie, czy parametry funkcji nie powtarzają się i nie są typu void, wykonywanie ciała pętli oraz instrukcji warunkowych jako bloku.
 
 Z uwag z pierwszej wersji zrealizowane zostały wszystkie poza kwestią dwóch funkcji main - aktualnie main może być redefiniowane i obowiązuje wyłącznie ostatnia definicja.
+
+Aktualna tabelka cech: 1-7, 9-13, 15-16
+
+## Nowe przykłady
+
+Przykłady z tuplami zostały zmodyfikowane żeby pasowały do nowej składni.
+
+### Good
+
+zmiana nazwy: 15-tuples.txt => 15-basic-tuples.txt
+
+15-pattern-matching.txt
+
+6-7-reference.txt
+
+9-13-inner2.txt
+
+zmodyfikowano io.txt
+
+### Bad
+
+tc-tuples-argument.txt
+
+tc-tuples-compare.txt
+
+tc-tuples-index.txt
+
+tc-tuples-patternmatching.txt
+
+tc-tuples-return.txt
+
+tc-badorder.txt
+
+tc-repeatargs.txt
+
+tc-void1.txt
+
+tc-void2.txt
