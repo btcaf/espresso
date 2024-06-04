@@ -3,6 +3,6 @@
 }
 
 int main() {
-    <int, <int, int>> x = f();
+    <int, <int, int>> x = f(); // type mismatch
     return 0;
 }

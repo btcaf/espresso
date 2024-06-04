@@ -1,0 +1,12 @@
+void f() {
+    g(); // not in scope
+}
+
+void g() {
+    printString("Hello, World!\n");
+}
+
+int main() {
+    f();
+    return 0;
+}

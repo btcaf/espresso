@@ -1,0 +1,7 @@
+void f(int x, string x) { // repeat argument name
+    return;
+}
+
+int main() {
+    return 0;
+}

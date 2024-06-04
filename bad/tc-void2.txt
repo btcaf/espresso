@@ -1,0 +1,7 @@
+void f(void x) { // illegal parameter type
+    return;
+}
+
+int main() {
+    return 0;
+}

@@ -1,5 +1,5 @@
 int main() {
     <int, int> x = [1, 2];
-    string y = x[1];
+    string y = x[1]; // type mismatch
     return 0;
 }

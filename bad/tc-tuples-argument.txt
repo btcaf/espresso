@@ -4,6 +4,6 @@ void f(<int, <int, string>> x) {
 
 int main() {
     <int, <int, int>> x;
-    f(x);
+    f(x); // type mismatch
     return 0;
 }
