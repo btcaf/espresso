@@ -1,0 +1,29 @@
+<int, <string, int>> f() {
+    return [1 - 1, ["hel" + "lo", 1 * 1]];
+}
+
+int first(<int, <string, int>> x) {
+    return x[0];
+}
+
+int main() {
+    int a, c;
+    string b;
+    <string, int> d;
+    <int, <string, int>> x = f();
+    m{a, m{b, c}} = x;
+    printInt(a); // 0
+    printString(b); // hello
+    printInt(c); // 1
+    m{a, d} = x;
+    if (d == [b, c]) {
+        printString("OK");
+    }
+    if (x == [0, ["hello", 1]]) {
+        printString("OK");
+    }
+    if (first(x) == 0) {
+        printString("OK");
+    }
+    return 0;
+}

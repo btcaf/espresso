@@ -1,7 +1,12 @@
+<int, string> readIntString() {
+    return [readInt(), readString()];
+}
+
 int main () {
-    int x = readInt();
-    printInt(x);
-    string s = readString();
-    printString(s);
+    int n;
+    string s;
+    m{n, s} = readIntString();
+    printInt(n + 1);
+    printString(s + "!");
     return 0;
 }

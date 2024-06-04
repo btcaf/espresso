@@ -1,0 +1,16 @@
+void test(int counter, string s) {
+    if (counter == 0) {
+        return;
+    }
+    s = s + "a";
+    test(counter - 1, &s);
+}
+
+int main () {
+    string s = "b";
+    test(10, s);
+    printString(s); // "b"
+    test(10, &s);
+    printString(s); // "baaaaaaaaaa"
+    return 0;
+}

@@ -1,0 +1,8 @@
+<int, <int, string>> f() {
+    return [1, [2, "3"]];
+}
+
+int main() {
+    <int, <int, int>> x = f();
+    return 0;
+}

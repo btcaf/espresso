@@ -1,0 +1,10 @@
+int main() {
+    int x = 0;
+    void inner() {printInt(222);}
+    void f() {inner();}
+    void inner() {printInt(333);}
+    void g() {inner();}
+    f(); // 222
+    g(); // 333
+    return 0;
+}

@@ -1,0 +1,5 @@
+int main() {
+    <int, int> x = [1, 2];
+    string y = x[1];
+    return 0;
+}

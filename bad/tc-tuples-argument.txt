@@ -1,0 +1,9 @@
+void f(<int, <int, string>> x) {
+    return;
+}
+
+int main() {
+    <int, <int, int>> x;
+    f(x);
+    return 0;
+}
