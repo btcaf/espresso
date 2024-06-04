@@ -205,9 +205,7 @@ execStmt (Continue pos) = do
 evalTupIndex :: Pos -> Value -> Int -> IM Value
 evalTupIndex pos v i =
     case v of
-        VTuple ts -> if i >= 0 && i < length ts
-            then return $ ts !! i
-            else throwErr pos $ tcErrorMsg "index out of bounds"
+        VTuple ts -> return $ ts !! i
         _ -> throwErr pos $ tcErrorMsg "expected tuple"
 
 evalIndHelper :: IndHelper -> IM Value

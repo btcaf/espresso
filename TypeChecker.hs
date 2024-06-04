@@ -79,7 +79,6 @@ checkFunc (FnDef pos t (Ident f) args b) = do
     if not $ null voidArgs
         then throwErr pos "Function argument cannot be void"
     else do
-        -- check for duplicates
         let duplicates = filter (\(x, _) -> length (filter (\(x', _) -> x == x') argPairs) > 1) argPairs
         if not $ null duplicates
             then throwErr pos "Function arguments must have unique identifiers"
