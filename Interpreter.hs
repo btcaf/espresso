@@ -12,9 +12,10 @@ import GeneratedParser.AbsEspresso
 type Var = String
 type Loc = Int
 type ErrMsg = String
+type Env = Map.Map Var Loc
 type Fun = [Value] -> IM Value
 
-data Value = VInt Int | VBool Bool | VStr String | VVoid | VTuple [Value] | VFun Fun
+data Value = VInt Int | VBool Bool | VStr String | VVoid | VTuple [Value] | VFun Env Fun
 
 data IState = IState {
     env :: Map.Map Var Loc,
@@ -83,20 +84,22 @@ setNewValue x v = do
     modify $ \s -> s { env = Map.insert x loc (env s), store = Map.insert loc v (store s) }
 
 addTopDef :: TopDef -> IM ()
-addTopDef (FnDef pos t (Ident f) args b) = setNewValue f $ VFun $ fix $ \phi argVals -> do
-    oldEnv <- getEnv
-    let argPairs = zip (map (\(Arg _ t (Ident x)) -> x) args) argVals
-    mapM_ (\(x, v) -> setNewValue x v) argPairs
-    setNewValue f $ VFun phi
-    ret <- execBlock b
-    setEnv oldEnv
-    case ret of
-        Just (EReturn v) -> return v
-        Just (EBreak pos) -> throwErr pos "Break outside loop"
-        Just (EContinue pos) -> throwErr pos "Continue outside loop"
-        _ -> case t of
-            Void _ -> return VVoid
-            _ -> throwErr pos "Function did not return a value"
+addTopDef (FnDef pos t (Ident f) args b) = do
+    env <- getEnv
+    setNewValue f $ VFun (env) $ fix $ \phi argVals -> do
+        oldEnv <- getEnv
+        let argPairs = zip (map (\(Arg _ t (Ident x)) -> x) args) argVals
+        mapM_ (\(x, v) -> setNewValue x v) argPairs
+        setNewValue f $ VFun env phi
+        ret <- execBlock b
+        setEnv oldEnv
+        case ret of
+            Just (EReturn v) -> return v
+            Just (EBreak pos) -> throwErr pos "Break outside loop"
+            Just (EContinue pos) -> throwErr pos "Continue outside loop"
+            _ -> case t of
+                Void _ -> return VVoid
+                _ -> throwErr pos "Function did not return a value"
 
 defaultValue :: Type -> Value
 defaultValue (Int _) = VInt 0
@@ -174,8 +177,8 @@ execStmt (Cond pos e s) = do
 execStmt (CondElse pos e s1 s2) = do
     v <- evalExpr e
     case v of
-        VBool True -> execBlock $ Block Nothing [s]
-        VBool False -> execBlock $ Block Nothing [s]
+        VBool True -> execBlock $ Block Nothing [s1]
+        VBool False -> execBlock $ Block Nothing [s2]
         _ -> throwErr pos $ tcErrorMsg "expected bool"
 
 execStmt (While pos e s) = do
@@ -235,9 +238,13 @@ evalExpr (ELitFalse _) = return $ VBool False
 evalExpr (EApp pos f args) = do
     val <- getValue pos $ convertIdent f
     case val of
-        VFun phi -> do
+        VFun env phi -> do
             argVals <- mapM evalExpr args
-            phi argVals -- TODO wykonywane w aktualnym stanie
+            oldEnv <- getEnv
+            setEnv env
+            ret <- phi argVals
+            setEnv oldEnv
+            return ret
         _ -> throwErr pos $ tcErrorMsg "expected function"
 
 evalExpr (Ind pos ih) = evalIndHelper ih
@@ -337,15 +344,15 @@ readString _ = throwErr Nothing $ tcErrorMsg "incorrect call to readString"
 
 execProgram :: Program -> IM Int
 execProgram (Program _ topDefs) = do
-    setNewValue "printInt" $ VFun printInt
-    setNewValue "printString" $ VFun printString
-    setNewValue "error" $ VFun Interpreter.error
-    setNewValue "readInt" $ VFun readInt
-    setNewValue "readString" $ VFun readString
+    setNewValue "printInt" $ VFun Map.empty printInt
+    setNewValue "printString" $ VFun Map.empty printString
+    setNewValue "error" $ VFun Map.empty Interpreter.error
+    setNewValue "readInt" $ VFun Map.empty readInt
+    setNewValue "readString" $ VFun Map.empty readString
     mapM_ addTopDef topDefs
     vmain <- getValue Nothing "main"
     case vmain of
-        VFun phi -> do
+        VFun _ phi -> do
             ret <- phi []
             case ret of
                 VInt n -> return n
