@@ -53,6 +53,9 @@ errMessage Nothing = ""
 throwErr :: Pos -> String -> IM a
 throwErr pos msg = lift $ throwError $ errMessage pos ++ msg
 
+throwTCErr :: Pos -> String -> IM a
+throwTCErr pos msg = throwErr pos $ tcErrorMsg msg
+
 convertIdent :: Ident -> Var
 convertIdent (Ident x) = x
 
@@ -71,14 +74,14 @@ getValue pos x = do
             case Map.lookup loc store of
                 Just v -> return v
                 Nothing -> throwErr pos $ "Internal interpreter error: nonexistent location"
-        Nothing -> throwErr pos $ tcErrorMsg $ "variable " ++ x ++ " not in scope"
+        Nothing -> throwTCErr pos $ "variable " ++ x ++ " not in scope"
 
 setValue :: Pos -> Var -> Value -> IM ()
 setValue pos x v = do
     env <- getEnv
     case Map.lookup x env of
         Just loc -> modify $ \s -> s { store = Map.insert loc v (store s) }
-        Nothing -> throwErr pos $ tcErrorMsg $ "variable " ++ x ++ " not in scope"
+        Nothing -> throwTCErr pos $ "variable " ++ x ++ " not in scope"
 
 setNewValue :: Var -> Value -> IM ()
 setNewValue x v = do
@@ -141,7 +144,7 @@ execIncrOrDecr pos x op = do
         VInt n -> do
             setValue pos (convertIdent x) (VInt (n `op` 1))
             return Nothing
-        _ -> throwErr pos $ tcErrorMsg "expected int"
+        _ -> throwTCErr pos "expected int"
 
 setTuple :: Pos -> AssLHS -> Value -> IM ()
 
@@ -150,7 +153,7 @@ setTuple pos (AssLSBase _ x) v = setValue pos (convertIdent x) v
 setTuple pos (AssLSRec _ lhss) (VTuple vs) = do
     mapM_ (uncurry $ setTuple pos) $ zip lhss vs
 
-setTuple pos _ _ = throwErr pos $ tcErrorMsg "incorrect tuple assignment"
+setTuple pos _ _ = throwTCErr pos "incorrect tuple assignment"
 
 execStmt :: Stmt -> IM (Maybe Exit)
 
@@ -187,14 +190,14 @@ execStmt (Cond pos e s) = do
     case v of
         VBool True -> execBlock $ Block Nothing [s]
         VBool False -> return Nothing
-        _ -> throwErr pos $ tcErrorMsg "expected bool"
+        _ -> throwTCErr pos "expected bool"
 
 execStmt (CondElse pos e s1 s2) = do
     v <- evalExpr e
     case v of
         VBool True -> execBlock $ Block Nothing [s1]
         VBool False -> execBlock $ Block Nothing [s2]
-        _ -> throwErr pos $ tcErrorMsg "expected bool"
+        _ -> throwTCErr pos "expected bool"
 
 execStmt (While pos e s) = do
     v <- evalExpr e
@@ -205,7 +208,7 @@ execStmt (While pos e s) = do
                 Just (EBreak _) -> return Nothing
                 _ -> execStmt (While pos e s)
         VBool False -> return Nothing
-        _ -> throwErr pos $ tcErrorMsg "expected bool"
+        _ -> throwTCErr pos "expected bool"
 
 execStmt (SExp _ e) = do
     evalExpr e
@@ -221,7 +224,7 @@ evalTupIndex :: Pos -> Value -> Int -> IM Value
 evalTupIndex pos v i =
     case v of
         VTuple ts -> return $ ts !! i
-        _ -> throwErr pos $ tcErrorMsg "expected tuple"
+        _ -> throwTCErr pos "expected tuple"
 
 evalIndHelper :: IndHelper -> IM Value
 evalIndHelper (IndBase pos x i) = do
@@ -237,7 +240,7 @@ evalBinLogical pos e1 op e2 = do
     v2 <- evalExpr e2
     case (v1, v2) of
         (VBool b1, VBool b2) -> return $ VBool $ b1 `op` b2
-        _ -> throwErr pos $ tcErrorMsg "expected bools"
+        _ -> throwTCErr pos "expected bools"
 
 compareNonFunction :: Value -> Value -> IM Bool
 compareNonFunction (VInt n1) (VInt n2) = return $ n1 == n2
@@ -257,7 +260,7 @@ evalPassedArg (ArgRef pos x) = do
     env <- getEnv
     case Map.lookup (convertIdent x) env of
         Just loc -> return $ Ref loc
-        Nothing -> throwErr pos $ tcErrorMsg "variable not in scope"
+        Nothing -> throwTCErr pos "variable not in scope"
 
 evalExpr :: Expr -> IM Value
 evalExpr (EVar pos x) = getValue pos $ convertIdent x
@@ -278,7 +281,7 @@ evalExpr (EApp pos f args) = do
             ret <- phi argVals
             setEnv oldEnv
             return ret
-        _ -> throwErr pos $ tcErrorMsg "expected function"
+        _ -> throwTCErr pos "expected function"
 
 evalExpr (Ind pos ih) = evalIndHelper ih
 
@@ -288,13 +291,13 @@ evalExpr (Neg pos e) = do
     v <- evalExpr e
     case v of
         VInt n -> return $ VInt (-n)
-        _ -> throwErr pos $ tcErrorMsg "expected int"
+        _ -> throwTCErr pos "expected int"
 
 evalExpr (Not pos e) = do
     v <- evalExpr e
     case v of
         VBool b -> return $ VBool (not b)
-        _ -> throwErr pos $ tcErrorMsg "expected bool"
+        _ -> throwTCErr pos "expected bool"
 
 evalExpr (EMul pos e1 op e2) = do
     v1 <- evalExpr e1
@@ -306,7 +309,7 @@ evalExpr (EMul pos e1 op e2) = do
                 if n2 == 0
                     then throwErr pos' "Division by zero"
                 else return $ VInt $ n1 `div` n2
-        _ -> throwErr pos $ tcErrorMsg "expected ints"
+        _ -> throwTCErr pos "expected ints"
 
 evalExpr (EAdd pos e1 op e2) = do
     v1 <- evalExpr e1
@@ -317,8 +320,8 @@ evalExpr (EAdd pos e1 op e2) = do
             Minus _ -> return $ VInt $ n1 - n2
         (VStr s1, VStr s2) -> case op of
             Plus _ -> return $ VStr $ s1 ++ s2
-            Minus _ -> throwErr pos $ tcErrorMsg "subtraction on strings"
-        _ -> throwErr pos $ tcErrorMsg "incorrect addition/subtraction types"
+            Minus _ -> throwTCErr pos "subtraction on strings"
+        _ -> throwTCErr pos "incorrect addition/subtraction types"
 
 evalExpr (ERel pos e1 op e2) = do
     v1 <- evalExpr e1
@@ -344,7 +347,7 @@ evalExpr (ERel pos e1 op e2) = do
             NE _ -> do
                 b <- compareNonFunction v1 v2
                 return $ VBool $ not b
-        _ -> throwErr pos $ tcErrorMsg "incorrect comparison types"
+        _ -> throwTCErr pos "incorrect comparison types"
 
 evalExpr (EAnd pos e1 e2) = evalBinLogical pos e1 (&&) e2
 
@@ -364,8 +367,8 @@ printInt [Ref loc] = do
         Just (VInt n) -> do
             liftIO $ print n
             return VVoid
-        _ -> throwErr Nothing $ tcErrorMsg "incorrect call to printInt"
-printInt _ = throwErr Nothing $ tcErrorMsg "incorrect call to printInt"
+        _ -> throwTCErr Nothing "incorrect call to printInt"
+printInt _ = throwTCErr Nothing "incorrect call to printInt"
 
 printString :: [FunArg] -> IM Value
 printString [Val (VStr s)] = do
@@ -377,24 +380,24 @@ printString [Ref loc] = do
         Just (VStr s) -> do
             liftIO $ putStrLn s
             return VVoid
-        _ -> throwErr Nothing $ tcErrorMsg "incorrect call to printString"
-printString _ = throwErr Nothing $ tcErrorMsg "incorrect call to printString"
+        _ -> throwTCErr Nothing "incorrect call to printString"
+printString _ = throwTCErr Nothing "incorrect call to printString"
 
 error :: [FunArg] -> IM Value
 error [] = throwErr Nothing "Runtime error: error() function called"
-error _ = throwErr Nothing $ tcErrorMsg "incorrect call to error"
+error _ = throwTCErr Nothing "incorrect call to error"
 
 readInt :: [FunArg] -> IM Value
 readInt [] = do
     n <- liftIO $ readLn
     return $ VInt n
-readInt _ = throwErr Nothing $ tcErrorMsg "incorrect call to readInt"
+readInt _ = throwTCErr Nothing "incorrect call to readInt"
 
 readString :: [FunArg] -> IM Value
 readString [] = do
     s <- liftIO $ getLine
     return $ VStr s
-readString _ = throwErr Nothing $ tcErrorMsg "incorrect call to readString"
+readString _ = throwTCErr Nothing "incorrect call to readString"
 
 execProgram :: Program -> IM Int
 execProgram (Program _ topDefs) = do
@@ -410,8 +413,8 @@ execProgram (Program _ topDefs) = do
             ret <- phi []
             case ret of
                 VInt n -> return n
-                _ -> throwErr Nothing $ tcErrorMsg "main has incorrect return type"
-        _ -> throwErr Nothing $ tcErrorMsg "main is not a function"
+                _ -> throwTCErr Nothing "main has incorrect return type"
+        _ -> throwTCErr Nothing "main is not a function"
 
 interpret :: Program -> IO (Either ErrMsg Int)
 interpret p = do
