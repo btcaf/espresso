@@ -86,7 +86,11 @@ ELitTrue.  Expr6 ::= "true" ;
 
 ELitFalse. Expr6 ::= "false" ;
 
-EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
+ArgVal.    PassedArg ::= Expr ;
+
+ArgRef.    PassedArg ::= "&" Ident ;
+
+EApp.      Expr6 ::= Ident "(" [PassedArg] ")" ;
 
 ETuple.    Expr6 ::= "[" [Expr] "]" ;
 
@@ -115,6 +119,8 @@ EOr.       Expr ::= Expr1 "||" Expr ;
 coercions  Expr 6 ;
 
 separator  Expr "," ;
+
+separator  PassedArg "," ;
 
 -- operators -----------------------------------------------
 

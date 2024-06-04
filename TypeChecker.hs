@@ -210,6 +210,12 @@ checkBinLogical pos e1 e2 = do
         (TBool, TBool) -> return TBool
         _ -> throwErr pos "Logical operation on non-booleans"
 
+checkPassedArg :: PassedArg -> TCM TType
+
+checkPassedArg (ArgVal _ e) = checkExpr e
+
+checkPassedArg (ArgRef pos x) = getIdentType pos x
+
 checkExpr :: Expr -> TCM TType
 checkExpr (EVar pos x) = getIdentType pos x
 
@@ -223,7 +229,7 @@ checkExpr (EApp pos f args) = do
     fType <- getIdentType pos f
     case fType of
         TFun retType argTypes -> do
-            argTypes' <- mapM checkExpr args
+            argTypes' <- mapM checkPassedArg args
             if argTypes == argTypes'
                 then return retType
             else throwErr pos "Type mismatch in function application"

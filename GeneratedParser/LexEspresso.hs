@@ -57,50 +57,50 @@ alex_accept = listArray (0 :: Int, 56)
   , AlexAccNone
   , AlexAccNone
   , AlexAccNone
+  , AlexAcc 9
   , AlexAcc 8
+  , AlexAccSkip
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccSkip
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccSkip
+  , AlexAccNone
   , AlexAcc 7
-  , AlexAccSkip
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccSkip
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccSkip
-  , AlexAccNone
   , AlexAcc 6
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
+  , AlexAccNone
   , AlexAcc 5
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
-  , AlexAccNone
   , AlexAccNone
   , AlexAcc 4
   , AlexAccNone
   , AlexAcc 3
-  , AlexAccNone
   , AlexAcc 2
   , AlexAcc 1
-  , AlexAccNone
   , AlexAcc 0
   , AlexAccSkip
   , AlexAccNone
@@ -109,12 +109,13 @@ alex_accept = listArray (0 :: Int, 56)
   , AlexAccNone
   ]
 
-alex_actions = array (0 :: Int, 9)
-  [ (8,alex_action_4)
-  , (7,alex_action_5)
-  , (6,alex_action_7)
-  , (5,alex_action_6)
-  , (4,alex_action_5)
+alex_actions = array (0 :: Int, 10)
+  [ (9,alex_action_4)
+  , (8,alex_action_5)
+  , (7,alex_action_7)
+  , (6,alex_action_6)
+  , (5,alex_action_5)
+  , (4,alex_action_4)
   , (3,alex_action_4)
   , (2,alex_action_4)
   , (1,alex_action_4)
@@ -468,22 +469,22 @@ eitherResIdent tv s = treeFind resWords
 -- | The keywords and symbols of the language organized as binary search tree.
 resWords :: BTree
 resWords =
-  b ">=" 20
-    (b "," 10
-       (b "(" 5
-          (b "%" 3 (b "!=" 2 (b "!" 1 N N) N) (b "&&" 4 N N))
-          (b "+" 8 (b "*" 7 (b ")" 6 N N) N) (b "++" 9 N N)))
-       (b "<" 15
-          (b "/" 13 (b "--" 12 (b "-" 11 N N) N) (b ";" 14 N N))
-          (b "==" 18 (b "=" 17 (b "<=" 16 N N) N) (b ">" 19 N N))))
-    (b "m{" 30
-       (b "continue" 25
-          (b "bool" 23 (b "]" 22 (b "[" 21 N N) N) (b "break" 24 N N))
-          (b "if" 28 (b "false" 27 (b "else" 26 N N) N) (b "int" 29 N N)))
-       (b "while" 35
-          (b "true" 33
-             (b "string" 32 (b "return" 31 N N) N) (b "void" 34 N N))
-          (b "||" 37 (b "{" 36 N N) (b "}" 38 N N))))
+  b ">" 20
+    (b "++" 10
+       (b "&&" 5
+          (b "%" 3 (b "!=" 2 (b "!" 1 N N) N) (b "&" 4 N N))
+          (b "*" 8 (b ")" 7 (b "(" 6 N N) N) (b "+" 9 N N)))
+       (b ";" 15
+          (b "--" 13 (b "-" 12 (b "," 11 N N) N) (b "/" 14 N N))
+          (b "=" 18 (b "<=" 17 (b "<" 16 N N) N) (b "==" 19 N N))))
+    (b "int" 30
+       (b "break" 25
+          (b "]" 23 (b "[" 22 (b ">=" 21 N N) N) (b "bool" 24 N N))
+          (b "false" 28
+             (b "else" 27 (b "continue" 26 N N) N) (b "if" 29 N N)))
+       (b "void" 35
+          (b "string" 33 (b "return" 32 (b "m{" 31 N N) N) (b "true" 34 N N))
+          (b "||" 38 (b "{" 37 (b "while" 36 N N) N) (b "}" 39 N N))))
   where
   b s n = B bs (TS bs n)
     where

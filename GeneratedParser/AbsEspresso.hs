@@ -77,7 +77,7 @@ data Expr' a
     | ELitInt a Integer
     | ELitTrue a
     | ELitFalse a
-    | EApp a Ident [Expr' a]
+    | EApp a Ident [PassedArg' a]
     | ETuple a [Expr' a]
     | Ind a (IndHelper' a)
     | EString a String
@@ -88,6 +88,10 @@ data Expr' a
     | ERel a (Expr' a) (RelOp' a) (Expr' a)
     | EAnd a (Expr' a) (Expr' a)
     | EOr a (Expr' a) (Expr' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
+
+type PassedArg = PassedArg' BNFC'Position
+data PassedArg' a = ArgVal a (Expr' a) | ArgRef a Ident
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
 type IndHelper = IndHelper' BNFC'Position
@@ -195,6 +199,11 @@ instance HasPosition Expr where
     ERel p _ _ _ -> p
     EAnd p _ _ -> p
     EOr p _ _ -> p
+
+instance HasPosition PassedArg where
+  hasPosition = \case
+    ArgVal p _ -> p
+    ArgRef p _ -> p
 
 instance HasPosition IndHelper where
   hasPosition = \case

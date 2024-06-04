@@ -13,7 +13,9 @@ type Var = String
 type Loc = Int
 type ErrMsg = String
 type Env = Map.Map Var Loc
-type Fun = [Value] -> IM Value
+type Fun = [FunArg] -> IM Value
+
+data FunArg = Val Value | Ref Loc
 
 data Value = VInt Int | VBool Bool | VStr String | VVoid | VTuple [Value] | VFun Env Fun
 
@@ -83,13 +85,17 @@ setNewValue x v = do
     loc <- newLoc
     modify $ \s -> s { env = Map.insert x loc (env s), store = Map.insert loc v (store s) }
 
+setFuncValue :: Var -> FunArg -> IM ()
+setFuncValue x (Val v) = setNewValue x v
+setFuncValue x (Ref loc) = modify $ \s -> s { env = Map.insert x loc (env s) }
+
 addTopDef :: TopDef -> IM ()
 addTopDef (FnDef pos t (Ident f) args b) = do
     env <- getEnv
     setNewValue f $ VFun (env) $ fix $ \phi argVals -> do
         oldEnv <- getEnv
         let argPairs = zip (map (\(Arg _ t (Ident x)) -> x) args) argVals
-        mapM_ (\(x, v) -> setNewValue x v) argPairs
+        mapM_ (\(x, v) -> setFuncValue x v) argPairs
         setNewValue f $ VFun env phi
         ret <- execBlock b
         setEnv oldEnv
@@ -241,6 +247,18 @@ compareNonFunction (VTuple ts1) (VTuple ts2) = do
     bs <- mapM (uncurry compareNonFunction) $ zip ts1 ts2
     return $ and bs
 
+evalPassedArg :: PassedArg -> IM FunArg
+
+evalPassedArg (ArgVal _ e) = do
+    v <- evalExpr e
+    return $ Val v
+
+evalPassedArg (ArgRef pos x) = do
+    env <- getEnv
+    case Map.lookup (convertIdent x) env of
+        Just loc -> return $ Ref loc
+        Nothing -> throwErr pos $ tcErrorMsg "variable not in scope"
+
 evalExpr :: Expr -> IM Value
 evalExpr (EVar pos x) = getValue pos $ convertIdent x
 
@@ -254,7 +272,7 @@ evalExpr (EApp pos f args) = do
     val <- getValue pos $ convertIdent f
     case val of
         VFun env phi -> do
-            argVals <- mapM evalExpr args
+            argVals <- mapM evalPassedArg args
             oldEnv <- getEnv
             setEnv env
             ret <- phi argVals
@@ -336,29 +354,43 @@ evalExpr (ETuple _ es) = do
     vs <- mapM evalExpr es
     return $ VTuple vs
 
-printInt :: [Value] -> IM Value
-printInt [VInt n] = do
+printInt :: [FunArg] -> IM Value
+printInt [Val (VInt n)] = do
     liftIO $ print n
     return VVoid
+printInt [Ref loc] = do
+    store <- gets store
+    case Map.lookup loc store of
+        Just (VInt n) -> do
+            liftIO $ print n
+            return VVoid
+        _ -> throwErr Nothing $ tcErrorMsg "incorrect call to printInt"
 printInt _ = throwErr Nothing $ tcErrorMsg "incorrect call to printInt"
 
-printString :: [Value] -> IM Value
-printString [VStr s] = do
+printString :: [FunArg] -> IM Value
+printString [Val (VStr s)] = do
     liftIO $ putStrLn s
     return VVoid
+printString [Ref loc] = do
+    store <- gets store
+    case Map.lookup loc store of
+        Just (VStr s) -> do
+            liftIO $ putStrLn s
+            return VVoid
+        _ -> throwErr Nothing $ tcErrorMsg "incorrect call to printString"
 printString _ = throwErr Nothing $ tcErrorMsg "incorrect call to printString"
 
-error :: [Value] -> IM Value
+error :: [FunArg] -> IM Value
 error [] = throwErr Nothing "Runtime error: error() function called"
 error _ = throwErr Nothing $ tcErrorMsg "incorrect call to error"
 
-readInt :: [Value] -> IM Value
+readInt :: [FunArg] -> IM Value
 readInt [] = do
     n <- liftIO $ readLn
     return $ VInt n
 readInt _ = throwErr Nothing $ tcErrorMsg "incorrect call to readInt"
 
-readString :: [Value] -> IM Value
+readString :: [FunArg] -> IM Value
 readString [] = do
     s <- liftIO $ getLine
     return $ VStr s
