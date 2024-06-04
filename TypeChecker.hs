@@ -285,7 +285,7 @@ checkProgram (Program pos topDefs) = do
     setType "readInt" $ TFun TInt []
     setType "readString" $ TFun TStr []
     setType "error" $ TFun TVoid []
-    mapM_ addTopDef topDefs
+    mapM_ (\td -> checkStmt $ FDecl Nothing td) topDefs
     env <- getEnv
     mainExists <- return $ Map.member "main" env
     if not mainExists
