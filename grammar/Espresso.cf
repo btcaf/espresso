@@ -104,7 +104,7 @@ EAnd.      Expr1 ::= Expr2 "&&" Expr1 ;
 
 EOr.       Expr ::= Expr1 "||" Expr ;
 
-ETuple.    Expr ::= "(" [Expr] ")" ;
+ETuple.    Expr ::= "[" [Expr] "]" ;
 
 coercions  Expr 6 ;
 

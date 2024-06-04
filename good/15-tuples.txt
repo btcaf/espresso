@@ -1,5 +1,5 @@
 int main() {
-    <int, <string, int>> x = (1 - 1, ("hel" + "lo", 1 * 1));
+    <int, <string, int>> x = [1 - 1, ["hel" + "lo", 1 * 1]];
     printInt(x[0]); // 0
     printString(x[1][0]); // hello
     printInt(x[1][1]); // 1

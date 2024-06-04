@@ -12,6 +12,6 @@ void bigFunction(int x, string y, bool z, <int, <int, string>> t) {
 }
 
 int main() {
-    bigFunction(1, "hello", true, (2, (3, "world"))); // 1\nhello\ntrue\n2\n3\nworld
+    bigFunction(1, "hello", true, [2, [3, "world"]]); // 1\nhello\ntrue\n2\n3\nworld
     return 0;
 }
