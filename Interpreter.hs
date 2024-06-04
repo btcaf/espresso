@@ -137,6 +137,15 @@ execIncrOrDecr pos x op = do
             return Nothing
         _ -> throwErr pos $ tcErrorMsg "expected int"
 
+setTuple :: Pos -> AssLHS -> Value -> IM ()
+
+setTuple pos (AssLSBase _ x) v = setValue pos (convertIdent x) v
+
+setTuple pos (AssLSRec _ lhss) (VTuple vs) = do
+    mapM_ (uncurry $ setTuple pos) $ zip lhss vs
+
+setTuple pos _ _ = throwErr pos $ tcErrorMsg "incorrect tuple assignment"
+
 execStmt :: Stmt -> IM (Maybe Exit)
 
 execStmt (Empty _) = return Nothing
@@ -151,9 +160,9 @@ execStmt (FDecl _ td) = do
     addTopDef td
     return Nothing
 
-execStmt (Ass pos x e) = do
+execStmt (Ass pos lhs e) = do
     v <- evalExpr e
-    setValue pos (convertIdent x) v
+    setTuple pos lhs v
     return Nothing
 
 execStmt (Incr pos x) = execIncrOrDecr pos x (+)

@@ -124,6 +124,14 @@ checkIfOrWhile pos e ss = do
     else do
         mapM_ (\s -> checkBlock (Block Nothing [s])) ss
 
+checkAssLHS :: AssLHS -> TCM TType
+
+checkAssLHS (AssLSBase pos x) = getIdentType pos x
+
+checkAssLHS (AssLSRec pos lhss) = do
+    ts <- mapM checkAssLHS lhss
+    return $ TTuple ts
+
 checkStmt :: Stmt -> TCM ()
 
 checkStmt (Empty _) = return ()
@@ -137,15 +145,15 @@ checkStmt (Decl pos t items) = do
     else do
         mapM_ (checkItem t') items
 
-checkStmt (FDecl _ td) = do
+checkStmt (FDecl _ td) = do 
     addTopDef td
     checkFunc td
 
-checkStmt (Ass pos x e) = do -- TODO tuple
-    t <- getIdentType pos x
+checkStmt (Ass pos lhs e) = do
+    t <- checkAssLHS lhs
     t' <- checkExpr e
     if t == t'
-        then setType (convertIdent x) t
+        then return ()
     else throwErr pos "Type mismatch in assignment"
 
 checkStmt (Incr pos x) = checkIncrOrDecr pos x

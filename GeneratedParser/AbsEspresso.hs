@@ -40,7 +40,7 @@ data Stmt' a
     | BStmt a (Block' a)
     | Decl a (Type' a) [Item' a]
     | FDecl a (TopDef' a)
-    | Ass a Ident (Expr' a)
+    | Ass a (AssLHS' a) (Expr' a)
     | Incr a Ident
     | Decr a Ident
     | Ret a (Expr' a)
@@ -55,6 +55,10 @@ data Stmt' a
 
 type Item = Item' BNFC'Position
 data Item' a = NoInit a Ident | Init a Ident (Expr' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
+
+type AssLHS = AssLHS' BNFC'Position
+data AssLHS' a = AssLSBase a Ident | AssLSRec a [AssLHS' a]
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 
 type Type = Type' BNFC'Position
@@ -159,6 +163,11 @@ instance HasPosition Item where
   hasPosition = \case
     NoInit p _ -> p
     Init p _ _ -> p
+
+instance HasPosition AssLHS where
+  hasPosition = \case
+    AssLSBase p _ -> p
+    AssLSRec p _ -> p
 
 instance HasPosition Type where
   hasPosition = \case

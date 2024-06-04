@@ -32,7 +32,11 @@ Init.      Item ::= Ident "=" Expr ;
 
 separator nonempty Item "," ;
 
-Ass.       Stmt ::= Ident "=" Expr  ";" ;
+AssLSBase. AssLHS ::= Ident ;
+
+AssLSRec.  AssLHS ::= "m{" [AssLHS] "}" ;
+
+Ass.       Stmt ::= AssLHS "=" Expr  ";" ;
 
 Incr.      Stmt ::= Ident "++"  ";" ;
 
@@ -53,6 +57,8 @@ SExp.      Stmt ::= Expr  ";" ;
 Break.     Stmt ::= "break" ";" ;
 
 Continue.  Stmt ::= "continue" ";" ;
+
+separator  AssLHS "," ;
 
 -- Types ---------------------------------------------------
 
